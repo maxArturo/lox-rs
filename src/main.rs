@@ -1,6 +1,7 @@
-use std::env;
 use std::io;
+use std::io::Write;
 use std::process::exit;
+use std::{env, fs};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -16,26 +17,42 @@ fn main() {
             exit(1);
         }
     }
-
 }
 
 fn with_file(filename: &String) {
     println!("you provided a file: {filename}.");
-    scan(filename);
+
+    match fs::read_to_string(filename) {
+        Ok(str) => scan(&str),
+        Err(e) => {
+            println!("Error reading file: {e}");
+            exit(1);
+        }
+    }
 }
 
 fn with_prompt() {
-
     println!("This is the LOX interpreter.");
     println!("Enter statements separated by ENTER.");
-    print!("> ");
+    println!("EXIT with CTRL-D.");
 
-    let mut statement = String::new();
+    loop {
+        print!("> ");
+        let _ = io::stdout().flush();
 
-    io::stdin()
-        .read_line(&mut statement)
-        .expect("failed to read statement");
-    scan(&statement);
+        let mut statement = String::new();
+
+        match io::stdin().read_line(&mut statement) {
+            Ok(0) => break,
+            Ok(str) => str,
+            Err(e) => {
+                println!("Unrecognized statement: {e}");
+                continue;
+            }
+        };
+
+        scan(&statement);
+    }
 }
 
 fn scan(raw_s: &String) {
