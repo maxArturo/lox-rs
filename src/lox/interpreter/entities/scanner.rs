@@ -81,6 +81,10 @@ impl Scanner {
         ));
     }
 
+    fn is_digit(n: char) -> bool {
+        n >= '0' && n <= '9'
+    }
+
     fn scan_token(&mut self) {
         let c = self.advance();
 
@@ -151,7 +155,17 @@ impl Scanner {
                 self.line += 1;
                 self.col = 1;
             }
-            _ => self.error(self.line, &format!("unexpected char: {0}", c)),
+
+            // we're also sticking digits and other catchalls here
+            _ => {
+                // wip
+                if self.is_digit(c) {
+                    self.number();
+                } else {
+
+                    self.error(self.line, &format!("unexpected char: {0}", c)),
+                }
+            } 
         }
     }
 
