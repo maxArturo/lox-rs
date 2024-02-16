@@ -32,6 +32,7 @@ impl Scanner {
     fn advance(&mut self) -> char {
         let res = self.chars[self.current];
         self.current += 1;
+        self.col += 1;
         res
     }
 
@@ -42,14 +43,47 @@ impl Scanner {
         self.chars[self.current]
     }
 
+    fn match_char(&mut self, expected: char) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        if self.chars[self.current] != expected {
+            return false;
+        }
+        self.current += 1;
+        true
+    }
+
     fn is_at_end(&self) -> bool {
         self.current >= self.source.len()
+    }
+
+    fn string(&mut self) {
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            self.error(self.line, "Unterminated string.");
+        }
+
+        // account for closing `"`
+        self.advance();
+
+        // create string literal
+        self.add_token(TokenType::String(
+            self.chars[(self.start + 1)..(self.current - 1)]
+                .iter()
+                .collect(),
+        ));
     }
 
     fn scan_token(&mut self) {
         let c = self.advance();
 
-        println!("currently matching:  {:#?}", c);
         match c {
             // single char literals
             '(' => self.add_token(TokenType::LeftParen),
@@ -63,23 +97,71 @@ impl Scanner {
             ';' => self.add_token(TokenType::SemiColon),
             '*' => self.add_token(TokenType::Star),
 
+            // multichar literals
+            '!' => {
+                if self.match_char('=') {
+                    self.add_token(TokenType::BangEqual)
+                } else {
+                    self.add_token(TokenType::Bang)
+                }
+            }
+            '=' => {
+                if self.match_char('=') {
+                    self.add_token(TokenType::EqualEqual)
+                } else {
+                    self.add_token(TokenType::Equal)
+                }
+            }
+            '<' => {
+                if self.match_char('=') {
+                    self.add_token(TokenType::LessEqual)
+                } else {
+                    self.add_token(TokenType::Equal)
+                }
+            }
+            '>' => {
+                if self.match_char('=') {
+                    self.add_token(TokenType::GreaterEqual)
+                } else {
+                    self.add_token(TokenType::Equal)
+                }
+            }
+
+            // comments
+            '/' => {
+                if self.match_char('/') {
+                    // slurp until end of line
+                    while !self.is_at_end() && self.peek() != '\n' {
+                        self.advance();
+                    }
+                } else {
+                    self.add_token(TokenType::Slash);
+                }
+            }
+
+            // strings
+            '"' => self.string(),
+
             // whitespaces to ignore
-            '\n' => {},
-            '\t' => {},
-            ' ' => {},
-            _ => self.error(self.line, &format!("unexpected char: {0}", c))
+            '\t' => {}
+            ' ' => {}
+
+            // handle newlines
+            '\n' => {
+                self.line += 1;
+                self.col = 1;
+            }
+            _ => self.error(self.line, &format!("unexpected char: {0}", c)),
         }
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        println!("adding token for {:?}", token_type);
         self.tokens.push(Token::new(
             token_type,
             self.chars[self.start..self.current].iter().collect(),
             self.line,
             Some(self.col),
         ));
-        println!("New tokens content: {:#?}", self.tokens);
     }
 
     pub fn scan(&mut self) {
