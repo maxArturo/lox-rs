@@ -26,10 +26,10 @@ pub enum TokenType {
     LessEqual,
 
     // literals
-    Identifier,
     String(String),
     // numbers in Lox are double floats
     Number(f64),
+    Identifier,
 
     // keywords
     And,

@@ -10,6 +10,7 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: i32,
+    line_start: usize,
     col: i32,
     tokens: Vec<Token>,
 }
@@ -23,6 +24,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            line_start: 1,
             col: 1,
             has_errors: false,
             tokens: Vec::new(),
@@ -32,7 +34,6 @@ impl Scanner {
     fn advance(&mut self) -> char {
         let res = self.chars[self.current];
         self.current += 1;
-        self.col += 1;
         res
     }
 
@@ -66,16 +67,23 @@ impl Scanner {
         self.current >= self.source.len()
     }
 
+    fn set_next_line(&mut self) {
+        self.line += 1;
+        self.line_start = self.current;
+        self.col = 1;
+    }
+
     fn string(&mut self) {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
-                self.line += 1;
+                self.set_next_line();
             }
             self.advance();
         }
 
         if self.is_at_end() {
             self.error(self.line, self.col, "Unterminated string.");
+            return;
         }
 
         // account for closing `"`
@@ -108,6 +116,32 @@ impl Scanner {
             Ok(num) => self.add_token(TokenType::Number(num)),
             Err(_) => self.error(self.line, self.col, "Invalid number provided"),
         };
+    }
+
+    fn identifier(&mut self) {
+        while self.peek().is_alphanumeric() {
+            self.advance();
+        }
+
+        match &self.source[self.start..self.current] {
+            "and" => self.add_token(TokenType::And),
+            "class" => self.add_token(TokenType::Class),
+            "else" => self.add_token(TokenType::Else),
+            "false" => self.add_token(TokenType::False),
+            "for" => self.add_token(TokenType::For),
+            "fun" => self.add_token(TokenType::Fun),
+            "if" => self.add_token(TokenType::If),
+            "nil" => self.add_token(TokenType::Nil),
+            "or" => self.add_token(TokenType::Or),
+            "print" => self.add_token(TokenType::Print),
+            "return" => self.add_token(TokenType::Return),
+            "super" => self.add_token(TokenType::Super),
+            "this" => self.add_token(TokenType::This),
+            "true" => self.add_token(TokenType::True),
+            "var" => self.add_token(TokenType::Var),
+            "while" => self.add_token(TokenType::While),
+            _ => self.add_token(TokenType::Identifier),
+        }
     }
 
     fn scan_token(&mut self) {
@@ -145,14 +179,14 @@ impl Scanner {
                 if self.match_char('=') {
                     self.add_token(TokenType::LessEqual)
                 } else {
-                    self.add_token(TokenType::Equal)
+                    self.add_token(TokenType::Less)
                 }
             }
             '>' => {
                 if self.match_char('=') {
                     self.add_token(TokenType::GreaterEqual)
                 } else {
-                    self.add_token(TokenType::Equal)
+                    self.add_token(TokenType::Greater)
                 }
             }
 
@@ -163,6 +197,28 @@ impl Scanner {
                     while !self.is_at_end() && self.peek() != '\n' {
                         self.advance();
                     }
+                } else if self.match_char('*') {
+                    // slurp until next end comment tokens
+                    while !self.is_at_end() {
+                        match self.peek() {
+                            '\n' => {
+                                self.set_next_line();
+                                self.advance();
+                            }
+                            '*' => {
+                                if self.peek_next() == '/' {
+                                    self.advance();
+                                    self.advance();
+                                    break;
+                                } else {
+                                    self.advance();
+                                }
+                            }
+                            _ => {
+                                self.advance();
+                            }
+                        }
+                    }
                 } else {
                     self.add_token(TokenType::Slash);
                 }
@@ -172,19 +228,19 @@ impl Scanner {
             '"' => self.string(),
 
             // whitespaces to ignore
-            '\t' => {}
-            ' ' => {}
+            '\t' | ' ' => {}
 
             // handle newlines
             '\n' => {
-                self.line += 1;
-                self.col = 1;
+                self.set_next_line();
             }
 
-            // we're also sticking digits and other catchalls here
+            // we're also sticking digits and identifiers/catchalls here
             _ => {
                 if c.is_ascii_digit() {
                     self.number();
+                } else if c.is_alphabetic() || c == '_' {
+                    self.identifier();
                 } else {
                     self.error(self.line, self.col, &format!("unexpected char: {0}", c));
                 }
@@ -195,9 +251,8 @@ impl Scanner {
     fn add_token(&mut self, token_type: TokenType) {
         self.tokens.push(Token::new(
             token_type,
-            String::from(&self.source[self.start..self.current]), 
             self.line,
-            Some(self.col),
+            (self.start - self.line_start + 1).try_into().unwrap(),
         ));
     }
 
@@ -208,12 +263,8 @@ impl Scanner {
         }
 
         // add EOF token
-        self.tokens.push(Token::new(
-            TokenType::Eof,
-            String::from(""),
-            self.line,
-            Some(self.col),
-        ));
+        self.tokens
+            .push(Token::new(TokenType::Eof, self.line, self.col));
     }
 
     fn error(&mut self, line: i32, col: i32, message: &str) {
