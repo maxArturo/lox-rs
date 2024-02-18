@@ -40,7 +40,15 @@ impl Scanner {
         if self.is_at_end() {
             return '\0';
         }
+
         self.chars[self.current]
+    }
+
+    fn peek_next(&self) -> char {
+        if self.current + 1 >= self.chars.len() {
+            return '\0';
+        }
+        self.chars[self.current + 1]
     }
 
     fn match_char(&mut self, expected: char) -> bool {
@@ -67,7 +75,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            self.error(self.line, "Unterminated string.");
+            self.error(self.line, self.col, "Unterminated string.");
         }
 
         // account for closing `"`
@@ -81,8 +89,25 @@ impl Scanner {
         ));
     }
 
-    fn is_digit(n: char) -> bool {
-        n >= '0' && n <= '9'
+    fn number(&mut self) {
+        while self.peek().is_ascii_digit() {
+            self.advance();
+        }
+
+        // look for fractional part
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            self.advance();
+
+            // consume remaining fractions
+            while self.peek().is_ascii_digit() {
+                self.advance();
+            }
+        }
+
+        match self.source[self.start..self.current].parse() {
+            Ok(num) => self.add_token(TokenType::Number(num)),
+            Err(_) => self.error(self.line, self.col, "Invalid number provided"),
+        };
     }
 
     fn scan_token(&mut self) {
@@ -158,21 +183,19 @@ impl Scanner {
 
             // we're also sticking digits and other catchalls here
             _ => {
-                // wip
-                if self.is_digit(c) {
+                if c.is_ascii_digit() {
                     self.number();
                 } else {
-
-                    self.error(self.line, &format!("unexpected char: {0}", c)),
+                    self.error(self.line, self.col, &format!("unexpected char: {0}", c));
                 }
-            } 
+            }
         }
     }
 
     fn add_token(&mut self, token_type: TokenType) {
         self.tokens.push(Token::new(
             token_type,
-            self.chars[self.start..self.current].iter().collect(),
+            String::from(&self.source[self.start..self.current]), 
             self.line,
             Some(self.col),
         ));
@@ -193,12 +216,12 @@ impl Scanner {
         ));
     }
 
-    fn error(&mut self, line: i32, message: &str) {
-        self.report(line, "", message);
+    fn error(&mut self, line: i32, col: i32, message: &str) {
+        self.report(line, col, "", message);
     }
 
-    fn report(&mut self, line: i32, location: &str, message: &str) {
-        eprintln!("[line {line}] Error{location}: {message}");
+    fn report(&mut self, line: i32, col: i32, location: &str, message: &str) {
+        eprintln!("[line {line}] [col {col}] Error{location}: {message}");
         self.has_errors = true;
     }
 }

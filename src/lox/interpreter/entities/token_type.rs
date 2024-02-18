@@ -1,3 +1,5 @@
+use std::f64;
+
 #[derive(Debug)]
 pub enum TokenType {
     // one char
@@ -26,7 +28,8 @@ pub enum TokenType {
     // literals
     Identifier,
     String(String),
-    Number,
+    // numbers in Lox are double floats
+    Number(f64),
 
     // keywords
     And,
