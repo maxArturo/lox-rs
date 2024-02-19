@@ -24,7 +24,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
-            line_start: 1,
+            line_start: 0,
             col: 1,
             has_errors: false,
             tokens: Vec::new(),
@@ -202,17 +202,16 @@ impl Scanner {
                     while !self.is_at_end() {
                         match self.peek() {
                             '\n' => {
-                                self.set_next_line();
                                 self.advance();
+                                self.set_next_line();
                             }
                             '*' => {
                                 if self.peek_next() == '/' {
                                     self.advance();
                                     self.advance();
                                     break;
-                                } else {
-                                    self.advance();
                                 }
+                                self.advance();
                             }
                             _ => {
                                 self.advance();
@@ -252,7 +251,7 @@ impl Scanner {
         self.tokens.push(Token::new(
             token_type,
             self.line,
-            (self.start - self.line_start + 1).try_into().unwrap(),
+            (1 + self.start - self.line_start).try_into().unwrap(),
         ));
     }
 
