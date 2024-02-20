@@ -1,8 +1,4 @@
-use std::char;
-
-use crate::lox::interpreter::entities::expr::{Expr, Grouping, Literal, Unary};
-
-use super::{Token, TokenType};
+use super::{Expr, Token, TokenType};
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -286,9 +282,19 @@ pub fn run_scanner(raw_s: &str) {
     println!("Here are the tokens that we found: {:#?}", scanner.tokens);
     println!(
         "and here's a pretty-print representation: {0}",
-        Grouping::new(Unary::new(
-            Literal::new(Token::new(TokenType::String(String::from("meow")), 18, 33)),
-            Token::new(TokenType::Bang, 3, 18)
-        )).pretty_print()
+        Expr::Unary {
+            right: Box::new(Expr::Grouping {
+                expression: Box::new(Expr::Binary {
+                    left: Box::new(Expr::Literal {
+                        value: Token::new(TokenType::Number(324.3), 12, 8)
+                    }),
+                    right: Box::new(Expr::Literal {
+                        value: Token::new(TokenType::Number(0.3), 13, 9)
+                    }),
+                    operator: Token::new(TokenType::Plus, 8, 9)
+                })
+            }),
+            operator: Token::new(TokenType::Bang, 3, 18)
+        }
     )
 }
