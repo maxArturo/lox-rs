@@ -1,19 +1,16 @@
 use super::TokenType;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    token_type: TokenType,
-    pub lexeme: String,
-    line: i32,
-    column: i32,
+    pub token_type: TokenType,
+    pub line: i32,
+    pub column: i32,
 }
 
 impl Token {
     pub fn new(token_type: TokenType, line: i32, column: i32) -> Self {
-        let lexeme = token_type.val();
-        Self {
+        Token {
             token_type,
-            lexeme,
             line,
             column,
         }

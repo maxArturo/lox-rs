@@ -1,6 +1,6 @@
-use std::{fmt, ops::Deref};
+use std::fmt;
 
-use super::Token;
+use super::{Token, TokenType};
 
 fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
     String::from("(")
@@ -8,16 +8,13 @@ fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
         + " "
         + &expressions
             .iter()
-            .map(|el| el.pretty_print())
+            .map(|el| el.to_string())
             .collect::<Vec<String>>()
             .join(" ")
         + ")"
 }
 
 pub enum Expr {
-    Grouping {
-        expression: Box<Expr>,
-    },
     Unary {
         right: Box<Expr>,
         operator: Token,
@@ -28,27 +25,29 @@ pub enum Expr {
         operator: Token,
     },
     Literal {
-        value: Token,
+        expr_type: TokenType,
     },
-}
-
-impl Expr {
-    fn pretty_print(&self) -> String {
-        match self {
-            Self::Grouping { expression } => parenthesize("grouping", vec![expression.deref()]),
-            Self::Unary { right, operator } => parenthesize(&operator.lexeme, vec![right.deref()]),
-            Self::Binary {
-                left,
-                right,
-                operator,
-            } => parenthesize(&operator.lexeme, vec![left.deref(), right.deref()]),
-            Self::Literal { value } => String::from(&value.lexeme),
-        }
-    }
+    Grouping {
+        expression: Box<Expr>,
+    },
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.pretty_print())
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Grouping { expression } => parenthesize("grouping", vec![expression]),
+                Self::Unary { right, operator } =>
+                    parenthesize(&operator.token_type.to_string(), vec![right]),
+                Self::Binary {
+                    left,
+                    right,
+                    operator,
+                } => parenthesize(&operator.token_type.to_string(), vec![left, right]),
+                Self::Literal { expr_type } => expr_type.to_string(),
+            }
+        )
     }
 }

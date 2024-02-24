@@ -1,3 +1,7 @@
+use std::f64;
+
+use crate::lox::interpreter::error::LoxErr;
+
 use super::{Expr, Token, TokenType};
 
 #[derive(Debug)]
@@ -39,7 +43,6 @@ impl Scanner {
         if self.is_at_end() {
             return '\0';
         }
-
         self.chars[self.current]
     }
 
@@ -62,7 +65,9 @@ impl Scanner {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current >= self.source.len()
+        let curr = self.current;
+        let source_len = self.source.len();
+        curr >= source_len
     }
 
     fn set_next_line(&mut self) {
@@ -80,19 +85,23 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            self.error(self.line, self.col, "Unterminated string.");
+            self.error("reached end of input");
             return;
         }
 
         // account for closing `"`
         self.advance();
+        let curr_col = self.curr_col();
 
-        // create string literal
-        self.add_token(TokenType::String(
-            self.chars[(self.start + 1)..(self.current - 1)]
-                .iter()
-                .collect(),
-        ));
+        let str_token = Token::new(
+            TokenType::String(String::from(
+                &self.source[(self.start + 1)..(self.current - 1)],
+            )),
+            self.line,
+            curr_col,
+        );
+
+        self.tokens.push(str_token);
     }
 
     fn number(&mut self) {
@@ -110,10 +119,14 @@ impl Scanner {
             }
         }
 
-        match self.source[self.start..self.current].parse() {
-            Ok(num) => self.add_token(TokenType::Number(num)),
-            Err(_) => self.error(self.line, self.col, "Invalid number provided"),
-        };
+        let curr_col = self.curr_col();
+        match self.source[self.start..self.current].parse::<f64>() {
+            Ok(num) => {
+                let num_token =
+                    Token::new(TokenType::Number(num, num.to_string()), self.line, curr_col);
+                self.tokens.push(num_token);
+            }
+            Err(err) => self.error(&format!("{}", err))};
     }
 
     fn identifier(&mut self) {
@@ -121,28 +134,38 @@ impl Scanner {
             self.advance();
         }
 
-        match &self.source[self.start..self.current] {
-            "and" => self.add_token(TokenType::And),
-            "class" => self.add_token(TokenType::Class),
-            "else" => self.add_token(TokenType::Else),
-            "false" => self.add_token(TokenType::False),
-            "for" => self.add_token(TokenType::For),
-            "fun" => self.add_token(TokenType::Fun),
-            "if" => self.add_token(TokenType::If),
-            "nil" => self.add_token(TokenType::Nil),
-            "or" => self.add_token(TokenType::Or),
-            "print" => self.add_token(TokenType::Print),
-            "return" => self.add_token(TokenType::Return),
-            "super" => self.add_token(TokenType::Super),
-            "this" => self.add_token(TokenType::This),
-            "true" => self.add_token(TokenType::True),
-            "var" => self.add_token(TokenType::Var),
-            "while" => self.add_token(TokenType::While),
-            _ => self.add_token(TokenType::Identifier),
-        }
+        let curr_str = &self.source[self.start..self.current];
+
+        let make_token = |t: TokenType| Token::new(t, self.line, self.curr_col());
+
+        let new_token = match curr_str {
+            "and" => make_token(TokenType::And),
+            "class" => make_token(TokenType::Class),
+            "else" => make_token(TokenType::Else),
+            "false" => make_token(TokenType::False),
+            "for" => make_token(TokenType::For),
+            "fun" => make_token(TokenType::Fun),
+            "if" => make_token(TokenType::If),
+            "nil" => make_token(TokenType::Nil),
+            "or" => make_token(TokenType::Or),
+            "print" => make_token(TokenType::Print),
+            "return" => make_token(TokenType::Return),
+            "super" => make_token(TokenType::Super),
+            "this" => make_token(TokenType::This),
+            "true" => make_token(TokenType::True),
+            "var" => make_token(TokenType::Var),
+            "while" => make_token(TokenType::While),
+            str => Token::new(
+                TokenType::String(String::from(str)),
+                self.line,
+                self.curr_col(),
+            ),
+        };
+        self.tokens.push(new_token);
     }
 
     fn scan_token(&mut self) {
+        self.start = self.current;
         let c = self.advance();
 
         match c {
@@ -239,37 +262,34 @@ impl Scanner {
                 } else if c.is_alphabetic() || c == '_' {
                     self.identifier();
                 } else {
-                    self.error(self.line, self.col, &format!("unexpected char: {0}", c));
+                    self.error(&format!("unexpected char: {0}", c));
                 }
             }
         }
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.tokens.push(Token::new(
-            token_type,
-            self.line,
-            (1 + self.start - self.line_start).try_into().unwrap(),
-        ));
+        let curr_col = self.curr_col();
+        self.tokens
+            .push(Token::new(token_type, self.line, curr_col));
+    }
+
+    fn curr_col(&self) -> i32 {
+        (1 + self.start - self.line_start).try_into().unwrap()
     }
 
     pub fn scan(&mut self) {
         while !self.is_at_end() {
-            self.start = self.current;
             self.scan_token();
         }
-
-        // add EOF token
-        self.tokens
-            .push(Token::new(TokenType::Eof, self.line, self.col));
     }
 
-    fn error(&mut self, line: i32, col: i32, message: &str) {
-        self.report(line, col, "", message);
-    }
-
-    fn report(&mut self, line: i32, col: i32, location: &str, message: &str) {
-        eprintln!("[line {line}] [col {col}] Error{location}: {message}");
+    fn error(&mut self, message: &str) {
+        eprintln!("{}", LoxErr::ScanError {
+            line: self.line,
+            col: self.col,
+            message: message.to_string()
+        });
         self.has_errors = true;
     }
 }
@@ -277,19 +297,20 @@ impl Scanner {
 pub fn run_scanner(raw_s: &str) {
     println!("received: {raw_s}");
     let mut scanner = Scanner::new(String::from(raw_s));
+
     scanner.scan();
 
-    println!("Here are the tokens that we found: {:#?}", scanner.tokens);
+    println!("Here are the tokens that we found: {:#?}", &scanner.tokens);
     println!(
         "and here's a pretty-print representation: {0}",
         Expr::Unary {
             right: Box::new(Expr::Grouping {
                 expression: Box::new(Expr::Binary {
                     left: Box::new(Expr::Literal {
-                        value: Token::new(TokenType::Number(324.3), 12, 8)
+                        expr_type: TokenType::Number(324.3, 324.3.to_string()),
                     }),
                     right: Box::new(Expr::Literal {
-                        value: Token::new(TokenType::Number(0.3), 13, 9)
+                        expr_type: TokenType::Number(0.3, 0.3.to_string()),
                     }),
                     operator: Token::new(TokenType::Plus, 8, 9)
                 })
