@@ -2,7 +2,7 @@ use std::io::Write;
 use std::process::exit;
 use std::{fs, io};
 
-use super::entities::run_scanner;
+use crate::lox::interpreter::run_scanner;
 
 pub fn run_file(filename: &String) {
     println!("you provided a file: {filename}.");

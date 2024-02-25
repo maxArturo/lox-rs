@@ -1,8 +1,7 @@
 use std::f64;
 
-use crate::lox::interpreter::error::LoxErr;
-
-use super::{Expr, Token, TokenType};
+use super::entities::{Token, TokenType};
+use crate::lox::interpreter::{error::LoxErr, parser};
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -123,10 +122,11 @@ impl Scanner {
         match self.source[self.start..self.current].parse::<f64>() {
             Ok(num) => {
                 let num_token =
-                    Token::new(TokenType::Number(num, num.to_string()), self.line, curr_col);
+                    Token::new(TokenType::Number(num), self.line, curr_col);
                 self.tokens.push(num_token);
             }
-            Err(err) => self.error(&format!("{}", err))};
+            Err(err) => self.error(&format!("{}", err)),
+        };
     }
 
     fn identifier(&mut self) {
@@ -156,7 +156,7 @@ impl Scanner {
             "var" => make_token(TokenType::Var),
             "while" => make_token(TokenType::While),
             str => Token::new(
-                TokenType::String(String::from(str)),
+                TokenType::Identifier(String::from(str)),
                 self.line,
                 self.curr_col(),
             ),
@@ -285,11 +285,14 @@ impl Scanner {
     }
 
     fn error(&mut self, message: &str) {
-        eprintln!("{}", LoxErr::ScanError {
-            line: self.line,
-            col: self.col,
-            message: message.to_string()
-        });
+        eprintln!(
+            "{}",
+            LoxErr::ScanError {
+                line: self.line,
+                col: self.col,
+                message: message.to_string()
+            }
+        );
         self.has_errors = true;
     }
 }
@@ -299,23 +302,15 @@ pub fn run_scanner(raw_s: &str) {
     let mut scanner = Scanner::new(String::from(raw_s));
 
     scanner.scan();
-
+    if scanner.has_errors {
+        return;
+    }
     println!("Here are the tokens that we found: {:#?}", &scanner.tokens);
-    println!(
-        "and here's a pretty-print representation: {0}",
-        Expr::Unary {
-            right: Box::new(Expr::Grouping {
-                expression: Box::new(Expr::Binary {
-                    left: Box::new(Expr::Literal {
-                        expr_type: TokenType::Number(324.3, 324.3.to_string()),
-                    }),
-                    right: Box::new(Expr::Literal {
-                        expr_type: TokenType::Number(0.3, 0.3.to_string()),
-                    }),
-                    operator: Token::new(TokenType::Plus, 8, 9)
-                })
-            }),
-            operator: Token::new(TokenType::Bang, 3, 18)
-        }
-    )
+    // let mut parser =
+    let mut parser = parser::Parser::new(scanner.tokens);
+
+    match parser.parse() {
+        Ok(expr) => println!("and here's a pretty-print representation: {0}", expr),
+        Err(err) => println!("{}", err),
+    }
 }
