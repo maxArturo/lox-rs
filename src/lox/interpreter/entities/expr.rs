@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::{Token, TokenType};
+use super::{Literal, Token};
 
 fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
     String::from("(")
@@ -14,6 +14,7 @@ fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
         + ")"
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Unary {
         right: Box<Expr>,
@@ -24,9 +25,7 @@ pub enum Expr {
         right: Box<Expr>,
         operator: Token,
     },
-    Literal {
-        expr_type: TokenType,
-    },
+    Literal(Literal),
     Grouping {
         expression: Box<Expr>,
     },
@@ -46,7 +45,7 @@ impl fmt::Display for Expr {
                     right,
                     operator,
                 } => parenthesize(&operator.token_type.to_string(), vec![left, right]),
-                Self::Literal { expr_type } => expr_type.to_string(),
+                Self::Literal(value) => value.to_string(),
             }
         )
     }

@@ -1,6 +1,6 @@
 use std::f64;
 
-use super::entities::{Token, TokenType};
+use super::entities::{Literal, Token, TokenType};
 use crate::lox::interpreter::{error::LoxErr, parser};
 
 #[derive(Debug)]
@@ -93,9 +93,10 @@ impl Scanner {
         let curr_col = self.curr_col();
 
         let str_token = Token::new(
-            TokenType::String(String::from(
+            TokenType::String,
+            Some(Literal::String(String::from(
                 &self.source[(self.start + 1)..(self.current - 1)],
-            )),
+            ))),
             self.line,
             curr_col,
         );
@@ -121,8 +122,12 @@ impl Scanner {
         let curr_col = self.curr_col();
         match self.source[self.start..self.current].parse::<f64>() {
             Ok(num) => {
-                let num_token =
-                    Token::new(TokenType::Number(num), self.line, curr_col);
+                let num_token = Token::new(
+                    TokenType::Number,
+                    Some(Literal::Number(num)),
+                    self.line,
+                    curr_col,
+                );
                 self.tokens.push(num_token);
             }
             Err(err) => self.error(&format!("{}", err)),
@@ -136,7 +141,7 @@ impl Scanner {
 
         let curr_str = &self.source[self.start..self.current];
 
-        let make_token = |t: TokenType| Token::new(t, self.line, self.curr_col());
+        let make_token = |t: TokenType| Token::new(t, None, self.line, self.curr_col());
 
         let new_token = match curr_str {
             "and" => make_token(TokenType::And),
@@ -155,11 +160,7 @@ impl Scanner {
             "true" => make_token(TokenType::True),
             "var" => make_token(TokenType::Var),
             "while" => make_token(TokenType::While),
-            str => Token::new(
-                TokenType::Identifier(String::from(str)),
-                self.line,
-                self.curr_col(),
-            ),
+            _ => Token::new(TokenType::Identifier, None, self.line, self.curr_col()),
         };
         self.tokens.push(new_token);
     }
@@ -271,17 +272,11 @@ impl Scanner {
     fn add_token(&mut self, token_type: TokenType) {
         let curr_col = self.curr_col();
         self.tokens
-            .push(Token::new(token_type, self.line, curr_col));
+            .push(Token::new(token_type, None, self.line, curr_col));
     }
 
     fn curr_col(&self) -> i32 {
         (1 + self.start - self.line_start).try_into().unwrap()
-    }
-
-    pub fn scan(&mut self) {
-        while !self.is_at_end() {
-            self.scan_token();
-        }
     }
 
     fn error(&mut self, message: &str) {
@@ -294,6 +289,36 @@ impl Scanner {
             }
         );
         self.has_errors = true;
+    }
+}
+
+pub trait Scan {
+    fn new(source: &str) -> Self;
+    fn scan(&mut self) -> Vec<Token>;
+}
+
+impl Scan for Scanner {
+    fn scan(&mut self) -> Vec<Token> {
+        while !self.is_at_end() {
+            self.scan_token();
+        }
+
+        self.tokens.clone()
+    }
+
+    fn new(source: &str) -> Self {
+        let chars = source.chars().collect();
+        Self {
+            source: source.to_string(),
+            chars,
+            start: 0,
+            current: 0,
+            line: 1,
+            line_start: 0,
+            col: 1,
+            has_errors: false,
+            tokens: Vec::new(),
+        }
     }
 }
 

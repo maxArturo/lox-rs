@@ -1,4 +1,4 @@
-use super::entities::{Expr, Token, TokenType};
+use super::entities::{Expr, Literal, Token, TokenType};
 use super::error::{LoxErr, Result};
 
 #[derive(Debug)]
@@ -31,11 +31,11 @@ impl Parser {
         self.peek().token_type == TokenType::Eof
     }
 
-    fn check(&self, token_type: TokenType) -> bool {
-        !self.is_at_end() && self.peek().token_type == token_type
+    fn check(&self, token_type: &TokenType) -> bool {
+        !self.is_at_end() && &self.peek().token_type == token_type
     }
 
-    fn consume(&mut self, token_type: TokenType, err_message: &str) -> Result<()> {
+    fn consume(&mut self, token_type: &TokenType, err_message: &str) -> Result<()> {
         if self.check(token_type) {
             self.advance();
             return Ok(());
@@ -79,18 +79,7 @@ impl Parser {
         todo!();
     }
 
-    fn match_fn<F>(&mut self, f: F) -> Option<&Token>
-    where
-        F: Fn(&Token) -> bool,
-    {
-        if f(self.peek()) {
-            let res = self.advance();
-            return Some(res);
-        }
-        None
-    }
-
-    fn match_types(&mut self, token_types: Vec<TokenType>) -> Option<&Token> {
+    fn matches(&mut self, token_types: &[TokenType]) -> Option<&Token> {
         for token_type in token_types {
             if self.check(token_type) {
                 let res = self.advance();
@@ -115,7 +104,7 @@ impl Parser {
     fn equality_rule(&mut self) -> Result<Expr> {
         let mut expr = self.comparison_rule()?;
         while self
-            .match_types(vec![TokenType::BangEqual, TokenType::EqualEqual])
+            .matches(&[TokenType::BangEqual, TokenType::EqualEqual])
             .is_some()
         {
             let operator = self.previous().clone();
@@ -132,7 +121,7 @@ impl Parser {
     fn comparison_rule(&mut self) -> Result<Expr> {
         let mut expr = self.term_rule()?;
         while self
-            .match_types(vec![
+            .matches(&[
                 TokenType::Greater,
                 TokenType::GreaterEqual,
                 TokenType::Less,
@@ -153,10 +142,7 @@ impl Parser {
 
     fn term_rule(&mut self) -> Result<Expr> {
         let mut expr = self.factor_rule()?;
-        while self
-            .match_types(vec![TokenType::Minus, TokenType::Plus])
-            .is_some()
-        {
+        while self.matches(&[TokenType::Minus, TokenType::Plus]).is_some() {
             let operator = self.previous().clone();
             let right = self.factor_rule()?;
             expr = Expr::Binary {
@@ -170,10 +156,7 @@ impl Parser {
 
     fn factor_rule(&mut self) -> Result<Expr> {
         let mut expr = self.unary_rule()?;
-        while self
-            .match_types(vec![TokenType::Slash, TokenType::Star])
-            .is_some()
-        {
+        while self.matches(&[TokenType::Slash, TokenType::Star]).is_some() {
             let operator = self.previous().clone();
             let right = self.unary_rule()?;
             expr = Expr::Binary {
@@ -186,10 +169,7 @@ impl Parser {
     }
 
     fn unary_rule(&mut self) -> Result<Expr> {
-        if self
-            .match_types(vec![TokenType::Bang, TokenType::Minus])
-            .is_some()
-        {
+        if self.matches(&[TokenType::Bang, TokenType::Minus]).is_some() {
             let operator = self.previous().clone();
             let right = self.unary_rule()?;
             return Ok(Expr::Unary {
@@ -201,26 +181,29 @@ impl Parser {
     }
 
     fn primary_rule(&mut self) -> Result<Expr> {
-        if let Some(token) =
-            self.match_types(vec![TokenType::False, TokenType::True, TokenType::Nil])
-        {
-            return Ok(Expr::Literal {
-                expr_type: token.token_type.clone(),
-            });
+        if self.matches(&[TokenType::False]).is_some() {
+            return Ok(Expr::Literal(Literal::Boolean(false)));
+        }
+
+        if self.matches(&[TokenType::True]).is_some() {
+            return Ok(Expr::Literal(Literal::Boolean(true)));
+        }
+
+        if self.matches(&[TokenType::Nil]).is_some() {
+            return Ok(Expr::Literal(Literal::Nil));
         }
 
         // handle string and num literals
-        if let Some(token) = self.match_fn(|t: &Token| {
-            matches!(t.token_type, TokenType::Number(_) | TokenType::String(_))
-        }) {
-            return Ok(Expr::Literal {
-                expr_type: token.token_type.clone(),
-            });
+        if let Some(token) = self.matches(&[TokenType::String, TokenType::Number]) {
+            return Ok(Expr::Literal(match &token.literal {
+                Some(lit) => lit.clone(),
+                None => Literal::Nil,
+            }));
         }
 
-        if self.match_types(vec![TokenType::LeftParen]).is_some() {
+        if self.matches(&[TokenType::LeftParen]).is_some() {
             let inner_expr = self.expression_rule()?;
-            self.consume(TokenType::RightParen, "Expected ) after this token")?;
+            self.consume(&TokenType::RightParen, "Expected ) after this token")?;
             return Ok(Expr::Grouping {
                 expression: Box::new(inner_expr),
             });

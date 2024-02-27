@@ -1,5 +1,4 @@
 use core::fmt;
-use std::f64 ;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
@@ -27,10 +26,10 @@ pub enum TokenType {
     LessEqual,
 
     // literals
-    String(String),
+    String,
     // numbers in Lox are double floats
-    Number(f64),
-    Identifier(String),
+    Number,
+    Identifier,
 
     // keywords
     And,
@@ -74,8 +73,8 @@ impl fmt::Display for TokenType {
             Self::GreaterEqual => ">=",
             Self::Less => "<",
             Self::LessEqual => "<=",
-            Self::String(str) => str,
-            Self::Identifier(str) => str,
+            Self::String => "String",
+            Self::Identifier => "Identifier",
             Self::And => "And",
             Self::Class => "Class",
             Self::Else => "Else",
@@ -93,9 +92,7 @@ impl fmt::Display for TokenType {
             Self::Var => "Var",
             Self::While => "While",
             Self::Eof => "Eof",
-            Self::Number(num) => {
-                return write!(f, "{}", num);
-            }
+            Self::Number => "Number",
         };
 
         write!(f, "{}", str_val)

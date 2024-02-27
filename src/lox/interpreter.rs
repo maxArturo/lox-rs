@@ -1,3 +1,4 @@
+mod eval;
 mod input;
 mod scanner;
 mod reader;
