@@ -14,8 +14,9 @@ fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
         + ")"
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+
     Unary {
         right: Box<Expr>,
         operator: Token,

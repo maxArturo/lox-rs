@@ -1,7 +1,7 @@
 use std::f64;
 
 use super::entities::{Literal, Token, TokenType};
-use crate::lox::interpreter::{error::LoxErr, parser};
+use crate::lox::interpreter::{error::LoxErr, eval::Interpreter, parser};
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -282,7 +282,7 @@ impl Scanner {
     fn error(&mut self, message: &str) {
         eprintln!(
             "{}",
-            LoxErr::ScanError {
+            LoxErr::Scan {
                 line: self.line,
                 col: self.col,
                 message: message.to_string()
@@ -302,6 +302,7 @@ impl Scan for Scanner {
         while !self.is_at_end() {
             self.scan_token();
         }
+        self.add_token(TokenType::Eof);
 
         self.tokens.clone()
     }
@@ -334,8 +335,8 @@ pub fn run_scanner(raw_s: &str) {
     // let mut parser =
     let mut parser = parser::Parser::new(scanner.tokens);
 
-    match parser.parse() {
-        Ok(expr) => println!("and here's a pretty-print representation: {0}", expr),
-        Err(err) => println!("{}", err),
-    }
+    parser
+        .parse()
+        .and_then(|stmts| Interpreter.interpret(&stmts[..]))
+        .map_err(|err| println!("Error executing statements: \n{}", err)).unwrap();
 }

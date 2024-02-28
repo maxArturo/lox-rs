@@ -1,4 +1,4 @@
-use super::entities::{Expr, Literal, Token, TokenType};
+use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
 #[derive(Debug)]
@@ -46,7 +46,7 @@ impl Parser {
     }
 
     fn error(&self, err_token: &Token, message: &str) -> LoxErr {
-        let err = LoxErr::ParseError {
+        let err = LoxErr::Parse {
             token: err_token.clone(),
             message: message.to_string(),
         };
@@ -93,22 +93,45 @@ impl Parser {
      * production rules
      */
 
-    pub fn parse(&mut self) -> Result<Expr> {
-        self.expression_rule()
+    pub fn parse(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements: Vec<Stmt> = vec![];
+        while !self.is_at_end() {
+            statements.push(self.stmt()?);
+        }
+        Ok(statements)
     }
 
-    fn expression_rule(&mut self) -> Result<Expr> {
-        self.equality_rule()
+    fn stmt(&mut self) -> Result<Stmt> {
+        if self.matches(&[TokenType::Print]).is_some() {
+            return self.print_stmt();
+        }
+        self.expr_stmt()
     }
 
-    fn equality_rule(&mut self) -> Result<Expr> {
-        let mut expr = self.comparison_rule()?;
+    fn print_stmt(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+        self.consume(&TokenType::SemiColon, "Expected `;` after value.")?;
+        Ok(Stmt::Print(expr))
+    }
+
+    fn expr_stmt(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+        self.consume(&TokenType::SemiColon, "Expected `;` after expression.")?;
+        Ok(Stmt::Expr(expr))
+    }
+
+    fn expression(&mut self) -> Result<Expr> {
+        self.equality()
+    }
+
+    fn equality(&mut self) -> Result<Expr> {
+        let mut expr = self.comparison()?;
         while self
             .matches(&[TokenType::BangEqual, TokenType::EqualEqual])
             .is_some()
         {
             let operator = self.previous().clone();
-            let right = self.comparison_rule()?;
+            let right = self.comparison()?;
             expr = Expr::Binary {
                 left: Box::new(expr),
                 right: Box::new(right),
@@ -118,8 +141,8 @@ impl Parser {
         Ok(expr)
     }
 
-    fn comparison_rule(&mut self) -> Result<Expr> {
-        let mut expr = self.term_rule()?;
+    fn comparison(&mut self) -> Result<Expr> {
+        let mut expr = self.term()?;
         while self
             .matches(&[
                 TokenType::Greater,
@@ -130,7 +153,7 @@ impl Parser {
             .is_some()
         {
             let operator = self.previous().clone();
-            let right = self.term_rule()?;
+            let right = self.term()?;
             expr = Expr::Binary {
                 left: Box::new(expr),
                 right: Box::new(right),
@@ -140,11 +163,11 @@ impl Parser {
         Ok(expr)
     }
 
-    fn term_rule(&mut self) -> Result<Expr> {
-        let mut expr = self.factor_rule()?;
+    fn term(&mut self) -> Result<Expr> {
+        let mut expr = self.factor()?;
         while self.matches(&[TokenType::Minus, TokenType::Plus]).is_some() {
             let operator = self.previous().clone();
-            let right = self.factor_rule()?;
+            let right = self.factor()?;
             expr = Expr::Binary {
                 left: Box::new(expr),
                 right: Box::new(right),
@@ -154,11 +177,11 @@ impl Parser {
         Ok(expr)
     }
 
-    fn factor_rule(&mut self) -> Result<Expr> {
-        let mut expr = self.unary_rule()?;
+    fn factor(&mut self) -> Result<Expr> {
+        let mut expr = self.unary()?;
         while self.matches(&[TokenType::Slash, TokenType::Star]).is_some() {
             let operator = self.previous().clone();
-            let right = self.unary_rule()?;
+            let right = self.unary()?;
             expr = Expr::Binary {
                 left: Box::new(expr),
                 right: Box::new(right),
@@ -168,19 +191,19 @@ impl Parser {
         Ok(expr)
     }
 
-    fn unary_rule(&mut self) -> Result<Expr> {
+    fn unary(&mut self) -> Result<Expr> {
         if self.matches(&[TokenType::Bang, TokenType::Minus]).is_some() {
             let operator = self.previous().clone();
-            let right = self.unary_rule()?;
+            let right = self.unary()?;
             return Ok(Expr::Unary {
                 right: Box::new(right),
                 operator,
             });
         }
-        self.primary_rule()
+        self.primary()
     }
 
-    fn primary_rule(&mut self) -> Result<Expr> {
+    fn primary(&mut self) -> Result<Expr> {
         if self.matches(&[TokenType::False]).is_some() {
             return Ok(Expr::Literal(Literal::Boolean(false)));
         }
@@ -202,7 +225,7 @@ impl Parser {
         }
 
         if self.matches(&[TokenType::LeftParen]).is_some() {
-            let inner_expr = self.expression_rule()?;
+            let inner_expr = self.expression()?;
             self.consume(&TokenType::RightParen, "Expected ) after this token")?;
             return Ok(Expr::Grouping {
                 expression: Box::new(inner_expr),
