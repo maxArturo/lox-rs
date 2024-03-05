@@ -1,3 +1,4 @@
+use super::entities::expr::{ExprBinary, ExprGrouping, ExprUnary};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
@@ -35,10 +36,9 @@ impl Parser {
         !self.is_at_end() && &self.peek().token_type == token_type
     }
 
-    fn consume(&mut self, token_type: &TokenType, err_message: &str) -> Result<()> {
+    fn consume(&mut self, token_type: &TokenType, err_message: &str) -> Result<&Token> {
         if self.check(token_type) {
-            self.advance();
-            return Ok(());
+            return Ok(self.advance());
         }
         self.error(self.peek(), err_message);
         // TODO optionally unwind here
@@ -96,16 +96,30 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Vec<Stmt>> {
         let mut statements: Vec<Stmt> = vec![];
         while !self.is_at_end() {
-            statements.push(self.stmt()?);
+            if let Some(stmt) = self.stmt() {
+                statements.push(stmt);
+            }
         }
         Ok(statements)
     }
 
-    fn stmt(&mut self) -> Result<Stmt> {
-        if self.matches(&[TokenType::Print]).is_some() {
-            return self.print_stmt();
+    fn stmt(&mut self) -> Option<Stmt> {
+        let stmt;
+        if self.matches(&[TokenType::Var]).is_some() {
+            stmt = self.var_stmt();
+        } else if self.matches(&[TokenType::Print]).is_some() {
+            stmt = self.print_stmt();
+        } else {
+            stmt = self.expr_stmt();
         }
-        self.expr_stmt()
+
+        match stmt {
+            Ok(val) => Some(val),
+            Err(_) => {
+                self.synchronize();
+                None
+            }
+        }
     }
 
     fn print_stmt(&mut self) -> Result<Stmt> {
@@ -120,6 +134,23 @@ impl Parser {
         Ok(Stmt::Expr(expr))
     }
 
+    fn var_stmt(&mut self) -> Result<Stmt> {
+        let token = self
+            .consume(&TokenType::Identifier, "expected variable name")?
+            .clone();
+        let mut initializer = None;
+
+        if self.matches(&[TokenType::Equal]).is_some() {
+            initializer = Some(self.expression()?);
+        }
+
+        self.consume(
+            &TokenType::SemiColon,
+            "Expected `;` after variable declaration.",
+        )?;
+        Ok(Stmt::Var(token, initializer))
+    }
+
     fn expression(&mut self) -> Result<Expr> {
         self.equality()
     }
@@ -132,11 +163,11 @@ impl Parser {
         {
             let operator = self.previous().clone();
             let right = self.comparison()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                right: Box::new(right),
+            expr = Expr::Binary(Box::new(ExprBinary {
+                left: expr,
+                right,
                 operator,
-            };
+            }));
         }
         Ok(expr)
     }
@@ -154,11 +185,11 @@ impl Parser {
         {
             let operator = self.previous().clone();
             let right = self.term()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                right: Box::new(right),
+            expr = Expr::Binary(Box::new(ExprBinary {
+                left: expr,
+                right,
                 operator,
-            };
+            }));
         }
         Ok(expr)
     }
@@ -168,11 +199,11 @@ impl Parser {
         while self.matches(&[TokenType::Minus, TokenType::Plus]).is_some() {
             let operator = self.previous().clone();
             let right = self.factor()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                right: Box::new(right),
+            expr = Expr::Binary(Box::new(ExprBinary {
+                left: expr,
+                right,
                 operator,
-            };
+            }));
         }
         Ok(expr)
     }
@@ -182,11 +213,11 @@ impl Parser {
         while self.matches(&[TokenType::Slash, TokenType::Star]).is_some() {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                right: Box::new(right),
+            expr = Expr::Binary(Box::new(ExprBinary {
+                left: expr,
+                right,
                 operator,
-            };
+            }));
         }
         Ok(expr)
     }
@@ -195,10 +226,7 @@ impl Parser {
         if self.matches(&[TokenType::Bang, TokenType::Minus]).is_some() {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            return Ok(Expr::Unary {
-                right: Box::new(right),
-                operator,
-            });
+            return Ok(Expr::Unary(Box::new(ExprUnary { right, operator })));
         }
         self.primary()
     }
@@ -224,13 +252,22 @@ impl Parser {
             }));
         }
 
+        if let Some(token) = self.matches(&[TokenType::Identifier]) {
+            return Ok(Expr::Var(token.clone()));
+        }
+
         if self.matches(&[TokenType::LeftParen]).is_some() {
             let inner_expr = self.expression()?;
             self.consume(&TokenType::RightParen, "Expected ) after this token")?;
-            return Ok(Expr::Grouping {
-                expression: Box::new(inner_expr),
-            });
+            return Ok(Expr::Grouping(Box::new(ExprGrouping {
+                expression: inner_expr,
+            })));
         }
+
+        if let Some(token) = self.matches(&[TokenType::Identifier]) {
+            return Ok(Expr::Var(token.clone()));
+        }
+
         Err(self.error(self.peek(), "expected expression"))
     }
 }

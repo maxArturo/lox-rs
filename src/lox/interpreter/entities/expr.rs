@@ -16,20 +16,29 @@ fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-
-    Unary {
-        right: Box<Expr>,
-        operator: Token,
-    },
-    Binary {
-        left: Box<Expr>,
-        right: Box<Expr>,
-        operator: Token,
-    },
+    Unary(Box<ExprUnary>),
+    Binary(Box<ExprBinary>),
     Literal(Literal),
-    Grouping {
-        expression: Box<Expr>,
-    },
+    Grouping(Box<ExprGrouping>),
+    Var(Token),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprGrouping {
+    pub expression: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprUnary {
+    pub right: Expr,
+    pub operator: Token,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprBinary {
+    pub left: Expr,
+    pub right: Expr,
+    pub operator: Token,
 }
 
 impl fmt::Display for Expr {
@@ -38,15 +47,20 @@ impl fmt::Display for Expr {
             f,
             "{}",
             match self {
-                Self::Grouping { expression } => parenthesize("grouping", vec![expression]),
-                Self::Unary { right, operator } =>
-                    parenthesize(&operator.token_type.to_string(), vec![right]),
-                Self::Binary {
-                    left,
-                    right,
-                    operator,
-                } => parenthesize(&operator.token_type.to_string(), vec![left, right]),
+                Self::Grouping(grouping) => {
+                    parenthesize("grouping", vec![&grouping.expression])
+                }
+                Self::Unary(unary) =>
+                    parenthesize(&unary.operator.token_type.to_string(), vec![&unary.right]),
+                Self::Binary(binary) => parenthesize(
+                    &binary.operator.token_type.to_string(),
+                    vec![&binary.left, &binary.right]
+                ),
                 Self::Literal(value) => value.to_string(),
+                Self::Var(var) => var
+                    .literal
+                    .clone()
+                    .map_or("None".to_string(), |t| t.to_string()),
             }
         )
     }

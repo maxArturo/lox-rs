@@ -1,6 +1,6 @@
 mod token;
 mod token_type;
-mod expr;
+pub mod expr;
 mod stmt;
 mod val;
 

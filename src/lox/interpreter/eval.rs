@@ -22,9 +22,13 @@ impl Interpreter {
         }))
     }
 
-    fn error(&self, expr: Box<Expr>, message: Option<&str>) -> LoxErr {
+    fn error(&self, expr: Vec<&Expr>, message: Option<&str>) -> LoxErr {
         let err = LoxErr::Eval {
-            expr: expr.to_string(),
+            expr: expr
+                .iter()
+                .map(|el| el.to_string())
+                .collect::<Vec<String>>()
+                .join(", "),
             message: message
                 .unwrap_or("Expression evaluation failed")
                 .to_string(),
@@ -35,13 +39,13 @@ impl Interpreter {
 }
 
 impl ExprEval<Value> for Interpreter {
-    fn literal(&self, literal: Literal) -> Result<Value> {
-        Ok(literal)
+    fn literal(&self, literal: &Literal) -> Result<Value> {
+        Ok(literal.clone())
     }
 
-    fn unary(&self, right: Box<Expr>, operator: Token) -> Result<Value> {
-        let eval_right: Value = self.eval(*right.clone())?;
-        let err_report = |other: Option<&str>| Err(self.error(right.clone(), other));
+    fn unary(&self, right: &Expr, operator: &Token) -> Result<Value> {
+        let eval_right: Value = self.eval(right)?;
+        let err_report = |other: Option<&str>| Err(self.error(vec![right], other));
 
         match operator.token_type {
             TokenType::Minus => match eval_right {
@@ -59,17 +63,13 @@ impl ExprEval<Value> for Interpreter {
         }
     }
 
-    fn binary(&self, left: Box<Expr>, right: Box<Expr>, operator: Token) -> Result<Value> {
-        let left_val = self.eval(*left.clone())?;
-        let right_val = self.eval(*right.clone())?;
+    fn binary(&self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
+        let left_val = self.eval(left)?;
+        let right_val = self.eval(right)?;
 
         let err_report = |reason: Option<&str>| {
             Err(self.error(
-                Box::new(Expr::Binary {
-                    left: left.clone(),
-                    right: right.clone(),
-                    operator: operator.clone(),
-                }),
+                vec![left, right],
                 reason.or(Some(&format!(
                     "Unexpected values in binary expr: {:#?}",
                     (&left_val, &right_val)
@@ -132,21 +132,29 @@ impl ExprEval<Value> for Interpreter {
         }
     }
 
-    fn grouping(&self, expression: Box<Expr>) -> Result<Value> {
-        self.eval(*expression)
+    fn grouping(&self, expression: &Expr) -> Result<Value> {
+        self.eval(expression)
+    }
+
+    fn var(&self, expression: &Token) -> Result<Value> {
+        todo!()
     }
 }
 
 impl StmtExec<()> for Interpreter {
     fn print_stmt(&self, expr: &Expr) -> Result<()> {
-        let val = self.eval(expr.clone())?;
+        let val = self.eval(expr)?;
         println!("{}", val);
         Ok(())
     }
 
     fn eval_stmt(&self, expr: &Expr) -> Result<()> {
-        self.eval(expr.clone())?;
+        self.eval(expr)?;
         Ok(())
+    }
+
+    fn var_stmt(&self, token: &Token, expr: &Option<Expr>) -> Result<()> {
+        todo!()
     }
 }
 
@@ -155,27 +163,27 @@ trait StmtExec<T> {
         match stmt {
             Stmt::Print(expr) => self.print_stmt(expr),
             Stmt::Expr(expr) => self.eval_stmt(expr),
+            Stmt::Var(token, expr) => self.var_stmt(token, expr),
         }
     }
     fn print_stmt(&self, expr: &Expr) -> Result<T>;
     fn eval_stmt(&self, expr: &Expr) -> Result<T>;
+    fn var_stmt(&self, token: &Token, expr: &Option<Expr>) -> Result<T>;
 }
 
 trait ExprEval<T> {
-    fn eval(&self, expr: Expr) -> Result<T> {
+    fn eval(&self, expr: &Expr) -> Result<T> {
         match expr {
-            Expr::Unary { right, operator } => self.unary(right, operator),
-            Expr::Binary {
-                left,
-                right,
-                operator,
-            } => self.binary(left, right, operator),
-            Expr::Grouping { expression } => self.grouping(expression),
+            Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
+            Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
+            Expr::Grouping(grouping) => self.grouping(&grouping.expression),
             Expr::Literal(lit) => self.literal(lit),
+            Expr::Var(var) => self.var(var),
         }
     }
-    fn literal(&self, literal: Literal) -> Result<T>;
-    fn unary(&self, right: Box<Expr>, operator: Token) -> Result<T>;
-    fn binary(&self, left: Box<Expr>, right: Box<Expr>, operator: Token) -> Result<T>;
-    fn grouping(&self, expression: Box<Expr>) -> Result<T>;
+    fn literal(&self, literal: &Literal) -> Result<T>;
+    fn unary(&self, right: &Expr, operator: &Token) -> Result<T>;
+    fn binary(&self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
+    fn grouping(&self, expression: &Expr) -> Result<T>;
+    fn var(&self, expression: &Token) -> Result<T>;
 }
