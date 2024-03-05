@@ -1,7 +1,7 @@
 mod token;
 mod token_type;
 pub mod expr;
-mod stmt;
+pub mod stmt;
 mod val;
 
 pub(super) use token::Token as Token;

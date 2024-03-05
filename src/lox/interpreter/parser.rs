@@ -1,4 +1,5 @@
 use super::entities::expr::{ExprBinary, ExprGrouping, ExprUnary};
+use super::entities::stmt::{StmtExpr, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
@@ -125,30 +126,30 @@ impl Parser {
     fn print_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expression()?;
         self.consume(&TokenType::SemiColon, "Expected `;` after value.")?;
-        Ok(Stmt::Print(expr))
+        Ok(Stmt::Print(StmtPrint { expr }))
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expression()?;
         self.consume(&TokenType::SemiColon, "Expected `;` after expression.")?;
-        Ok(Stmt::Expr(expr))
+        Ok(Stmt::Expr(StmtExpr { expr }))
     }
 
     fn var_stmt(&mut self) -> Result<Stmt> {
         let token = self
             .consume(&TokenType::Identifier, "expected variable name")?
             .clone();
-        let mut initializer = None;
+        let mut expr = None;
 
         if self.matches(&[TokenType::Equal]).is_some() {
-            initializer = Some(self.expression()?);
+            expr = Some(self.expression()?);
         }
 
         self.consume(
             &TokenType::SemiColon,
             "Expected `;` after variable declaration.",
         )?;
-        Ok(Stmt::Var(token, initializer))
+        Ok(Stmt::Var(StmtVar { token, expr }))
     }
 
     fn expression(&mut self) -> Result<Expr> {

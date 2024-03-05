@@ -1,5 +1,9 @@
 use super::{
-    entities::{Expr, Literal, Stmt, Token, TokenType, Value},
+    entities::{
+        expr::ExprGrouping,
+        stmt::{StmtExpr, StmtPrint, StmtVar},
+        Expr, Literal, Stmt, Token, TokenType, Value,
+    },
     error::{LoxErr, Result},
 };
 
@@ -132,8 +136,8 @@ impl ExprEval<Value> for Interpreter {
         }
     }
 
-    fn grouping(&self, expression: &Expr) -> Result<Value> {
-        self.eval(expression)
+    fn grouping(&self, expression: &ExprGrouping) -> Result<Value> {
+        self.eval(&expression.expression)
     }
 
     fn var(&self, expression: &Token) -> Result<Value> {
@@ -142,18 +146,18 @@ impl ExprEval<Value> for Interpreter {
 }
 
 impl StmtExec<()> for Interpreter {
-    fn print_stmt(&self, expr: &Expr) -> Result<()> {
-        let val = self.eval(expr)?;
+    fn print_stmt(&self, stmt: &StmtPrint) -> Result<()> {
+        let val = self.eval(&stmt.expr)?;
         println!("{}", val);
         Ok(())
     }
 
-    fn eval_stmt(&self, expr: &Expr) -> Result<()> {
-        self.eval(expr)?;
+    fn eval_stmt(&self, stmt: &StmtExpr) -> Result<()> {
+        self.eval(&stmt.expr)?;
         Ok(())
     }
 
-    fn var_stmt(&self, token: &Token, expr: &Option<Expr>) -> Result<()> {
+    fn var_stmt(&self, token: &StmtVar) -> Result<()> {
         todo!()
     }
 }
@@ -161,14 +165,14 @@ impl StmtExec<()> for Interpreter {
 trait StmtExec<T> {
     fn exec_stmt(&self, stmt: &Stmt) -> Result<T> {
         match stmt {
-            Stmt::Print(expr) => self.print_stmt(expr),
-            Stmt::Expr(expr) => self.eval_stmt(expr),
-            Stmt::Var(token, expr) => self.var_stmt(token, expr),
+            Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Expr(stmt) => self.eval_stmt(stmt),
+            Stmt::Var(stmt) => self.var_stmt(stmt),
         }
     }
-    fn print_stmt(&self, expr: &Expr) -> Result<T>;
-    fn eval_stmt(&self, expr: &Expr) -> Result<T>;
-    fn var_stmt(&self, token: &Token, expr: &Option<Expr>) -> Result<T>;
+    fn print_stmt(&self, expr: &StmtPrint) -> Result<T>;
+    fn eval_stmt(&self, expr: &StmtExpr) -> Result<T>;
+    fn var_stmt(&self, token: &StmtVar) -> Result<T>;
 }
 
 trait ExprEval<T> {
@@ -176,7 +180,7 @@ trait ExprEval<T> {
         match expr {
             Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
             Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
-            Expr::Grouping(grouping) => self.grouping(&grouping.expression),
+            Expr::Grouping(grouping) => self.grouping(grouping),
             Expr::Literal(lit) => self.literal(lit),
             Expr::Var(var) => self.var(var),
         }
@@ -184,6 +188,6 @@ trait ExprEval<T> {
     fn literal(&self, literal: &Literal) -> Result<T>;
     fn unary(&self, right: &Expr, operator: &Token) -> Result<T>;
     fn binary(&self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
-    fn grouping(&self, expression: &Expr) -> Result<T>;
+    fn grouping(&self, expression: &ExprGrouping) -> Result<T>;
     fn var(&self, expression: &Token) -> Result<T>;
 }
