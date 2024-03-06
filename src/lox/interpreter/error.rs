@@ -6,8 +6,14 @@ pub type Result<T> = std::result::Result<T, LoxErr>;
 
 #[derive(Debug)]
 pub enum LoxErr {
+    Undefined {
+        message: String,
+    },
     Eval {
         expr: String,
+        message: String,
+    },
+    Internal {
         message: String,
     },
     Parse {
@@ -33,6 +39,12 @@ impl fmt::Display for LoxErr {
             }
             Self::Scan { line, col, message } => {
                 format!("Syntax error: {}\nat line: {}, col: {}", message, line, col)
+            }
+            Self::Internal { message } => {
+                format!("Internal program error: {}", message)
+            }
+            Self::Undefined { message } => {
+                format!("Undefined error: {}", message)
             }
         };
         write!(f, "{}", msg)

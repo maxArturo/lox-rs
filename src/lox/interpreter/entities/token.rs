@@ -1,3 +1,6 @@
+use crate::lox::interpreter::error::LoxErr;
+
+use super::super::error::Result;
 use super::{val::Literal, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -16,5 +19,23 @@ impl Token {
             line,
             column,
         }
+    }
+
+    pub fn ensure_type(&self, ensure: TokenType) -> bool {
+        self.token_type == ensure
+    }
+
+    pub fn extract_identifier_str(&self) -> Result<&str> {
+        let err = || LoxErr::Internal {
+            message: "No string value defined for identifier token".to_string(),
+        };
+        if self.ensure_type(TokenType::Identifier) {
+            return self.literal.as_ref().ok_or(err()).and_then(|l| match l {
+                Literal::String(str) => Ok(str.as_str()),
+                _ => Err(err()),
+            });
+        }
+
+        Err(err())
     }
 }

@@ -41,9 +41,8 @@ impl Parser {
         if self.check(token_type) {
             return Ok(self.advance());
         }
-        self.error(self.peek(), err_message);
-        // TODO optionally unwind here
-        panic!();
+
+        Err(self.error(self.peek(), err_message))
     }
 
     fn error(&self, err_token: &Token, message: &str) -> LoxErr {
@@ -77,7 +76,6 @@ impl Parser {
             }
             self.advance();
         }
-        todo!();
     }
 
     fn matches(&mut self, token_types: &[TokenType]) -> Option<&Token> {

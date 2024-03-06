@@ -160,7 +160,12 @@ impl Scanner {
             "true" => make_token(TokenType::True),
             "var" => make_token(TokenType::Var),
             "while" => make_token(TokenType::While),
-            _ => Token::new(TokenType::Identifier, None, self.line, self.curr_col()),
+            str => Token::new(
+                TokenType::Identifier,
+                Some(Literal::String(str.to_string())),
+                self.line,
+                self.curr_col(),
+            ),
         };
         self.tokens.push(new_token);
     }
@@ -337,6 +342,7 @@ pub fn run_scanner(raw_s: &str) {
 
     parser
         .parse()
-        .and_then(|stmts| Interpreter.interpret(&stmts[..]))
-        .map_err(|err| println!("Error executing statements: \n{}", err)).unwrap();
+        .and_then(|stmts| Interpreter::new().interpret(&stmts[..]))
+        .map_err(|err| println!("Error executing statements: \n{}", err))
+        .unwrap_or(())
 }

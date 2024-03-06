@@ -2,16 +2,22 @@ use super::{
     entities::{
         expr::ExprGrouping,
         stmt::{StmtExpr, StmtPrint, StmtVar},
-        Expr, Literal, Stmt, Token, TokenType, Value,
+        Env, Expr, Literal, Stmt, Token, TokenType, Value,
     },
     error::{LoxErr, Result},
 };
 
 #[derive(Debug)]
-pub struct Interpreter;
+pub struct Interpreter {
+    env: Env<Value>,
+}
 
 impl Interpreter {
-    pub fn interpret(&self, stmts: &[Stmt]) -> Result<()> {
+    pub fn new() -> Self {
+        Self { env: Env::new() }
+    }
+
+    pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
         for s in stmts {
             self.exec_stmt(s)?;
         }
@@ -141,7 +147,8 @@ impl ExprEval<Value> for Interpreter {
     }
 
     fn var(&self, expression: &Token) -> Result<Value> {
-        todo!()
+        let res = self.env.get(expression.extract_identifier_str()?);
+        Ok(res?.clone())
     }
 }
 
@@ -157,13 +164,17 @@ impl StmtExec<()> for Interpreter {
         Ok(())
     }
 
-    fn var_stmt(&self, token: &StmtVar) -> Result<()> {
-        todo!()
+    fn var_stmt(&mut self, var: &StmtVar) -> Result<()> {
+        self.env.define(
+            var.token.extract_identifier_str()?,
+            var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?,
+        );
+        Ok(())
     }
 }
 
 trait StmtExec<T> {
-    fn exec_stmt(&self, stmt: &Stmt) -> Result<T> {
+    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<T> {
         match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
@@ -172,7 +183,7 @@ trait StmtExec<T> {
     }
     fn print_stmt(&self, expr: &StmtPrint) -> Result<T>;
     fn eval_stmt(&self, expr: &StmtExpr) -> Result<T>;
-    fn var_stmt(&self, token: &StmtVar) -> Result<T>;
+    fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
 }
 
 trait ExprEval<T> {
