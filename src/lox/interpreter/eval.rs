@@ -147,8 +147,8 @@ impl ExprEval<Value> for Interpreter {
     }
 
     fn var(&self, expression: &Token) -> Result<Value> {
-        let res = self.env.get(expression.extract_identifier_str()?);
-        Ok(res?.clone())
+        let res = self.env.get(expression.extract_identifier_str()?)?;
+        Ok(res.clone())
     }
 }
 

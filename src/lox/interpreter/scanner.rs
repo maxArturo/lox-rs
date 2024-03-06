@@ -1,13 +1,13 @@
 use std::f64;
 
-use super::entities::{Literal, Token, TokenType};
-use crate::lox::interpreter::{error::LoxErr, eval::Interpreter, parser};
+use super::entities::{Literal, Stmt, Token, TokenType};
+use crate::lox::interpreter::{error::LoxErr, parser};
 
 #[derive(Debug)]
 pub struct Scanner {
     source: String,
     chars: Vec<char>,
-    has_errors: bool,
+    errors: Option<Vec<LoxErr>>,
     start: usize,
     current: usize,
     line: i32,
@@ -27,7 +27,7 @@ impl Scanner {
             line: 1,
             line_start: 0,
             col: 1,
-            has_errors: false,
+            errors: None,
             tokens: Vec::new(),
         }
     }
@@ -285,15 +285,29 @@ impl Scanner {
     }
 
     fn error(&mut self, message: &str) {
-        eprintln!(
-            "{}",
-            LoxErr::Scan {
-                line: self.line,
-                col: self.col,
-                message: message.to_string()
+        // eprintln!(
+        //     "{}",
+        //     LoxErr::Scan {
+        //         line: self.line,
+        //         col: self.col,
+        //         message: message.to_string()
+        //     }
+        // );
+
+        let err = || LoxErr::Scan {
+            line: self.line,
+            col: self.col,
+            message: message.to_string(),
+        };
+
+        match &mut self.errors {
+            Some(errs) => {
+                errs.push(err());
             }
-        );
-        self.has_errors = true;
+            None => {
+                self.errors = Some(vec![err()]);
+            }
+        };
     }
 }
 
@@ -322,27 +336,24 @@ impl Scan for Scanner {
             line: 1,
             line_start: 0,
             col: 1,
-            has_errors: false,
+            errors: None,
             tokens: Vec::new(),
         }
     }
 }
 
-pub fn run_scanner(raw_s: &str) {
-    println!("received: {raw_s}");
+pub fn scan_parse(raw_s: &str) -> Option<Vec<Stmt>> {
+    // TODO if debug enabled we should add this verbose logging
+    // println!("received: {raw_s}");
     let mut scanner = Scanner::new(String::from(raw_s));
 
     scanner.scan();
-    if scanner.has_errors {
-        return;
+    if scanner.errors.is_some() {
+        return None;
     }
-    println!("Here are the tokens that we found: {:#?}", &scanner.tokens);
-    // let mut parser =
+    // TODO if debug enabled we should add this verbose logging
+    // println!("Here are the tokens that we found: {:#?}", &scanner.tokens);
     let mut parser = parser::Parser::new(scanner.tokens);
 
-    parser
-        .parse()
-        .and_then(|stmts| Interpreter::new().interpret(&stmts[..]))
-        .map_err(|err| println!("Error executing statements: \n{}", err))
-        .unwrap_or(())
+    parser.parse().ok()
 }
