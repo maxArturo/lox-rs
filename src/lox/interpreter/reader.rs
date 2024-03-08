@@ -2,6 +2,8 @@ use std::io::Write;
 use std::process::exit;
 use std::{fs, io};
 
+use log::error;
+
 use crate::lox::interpreter::eval::Interpreter;
 use crate::lox::interpreter::scan_parse;
 
@@ -14,7 +16,7 @@ pub fn run_file(filename: &String) {
             repl(interpreter, &str);
         }
         Err(e) => {
-            println!("Error reading file: {e}");
+            error!("Error reading file: {e}");
             exit(66); // EX_NOINPUT
         }
     }
@@ -36,7 +38,7 @@ pub fn run_prompt() {
             Ok(0) => break,
             Ok(str) => str,
             Err(e) => {
-                println!("Unrecognized statement: {e}");
+                error!("Unrecognized input: {e}");
                 continue;
             }
         };
@@ -45,5 +47,7 @@ pub fn run_prompt() {
 }
 
 fn repl(interpreter: &mut Interpreter, str: &str) {
-    scan_parse(str).map(|stmts| interpreter.interpret(&stmts[..]));
+    let _ = scan_parse(str)
+        .map(|stmts| interpreter.interpret(&stmts[..]))
+        .inspect_err(|e| error!("{:?}", e));
 }

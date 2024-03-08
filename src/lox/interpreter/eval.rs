@@ -33,7 +33,7 @@ impl Interpreter {
     }
 
     fn error(&self, expr: Vec<&Expr>, message: Option<&str>) -> LoxErr {
-        let err = LoxErr::Eval {
+        LoxErr::Eval {
             expr: expr
                 .iter()
                 .map(|el| el.to_string())
@@ -42,9 +42,7 @@ impl Interpreter {
             message: message
                 .unwrap_or("Expression evaluation failed")
                 .to_string(),
-        };
-        eprintln!("{}", err);
-        err
+        }
     }
 }
 

@@ -1,7 +1,11 @@
 use std::f64;
 
 use super::entities::{Literal, Stmt, Token, TokenType};
-use crate::lox::interpreter::{error::LoxErr, parser};
+use crate::lox::interpreter::{
+    error::{LoxErr, Result},
+    parser,
+};
+use log::debug;
 
 #[derive(Debug)]
 pub struct Scanner {
@@ -285,15 +289,6 @@ impl Scanner {
     }
 
     fn error(&mut self, message: &str) {
-        // eprintln!(
-        //     "{}",
-        //     LoxErr::Scan {
-        //         line: self.line,
-        //         col: self.col,
-        //         message: message.to_string()
-        //     }
-        // );
-
         let err = || LoxErr::Scan {
             line: self.line,
             col: self.col,
@@ -313,17 +308,20 @@ impl Scanner {
 
 pub trait Scan {
     fn new(source: &str) -> Self;
-    fn scan(&mut self) -> Vec<Token>;
+    fn scan(&mut self) -> Result<Vec<Token>, Vec<LoxErr>>;
 }
 
 impl Scan for Scanner {
-    fn scan(&mut self) -> Vec<Token> {
+    fn scan(&mut self) -> Result<Vec<Token>, Vec<LoxErr>> {
         while !self.is_at_end() {
             self.scan_token();
         }
         self.add_token(TokenType::Eof);
 
-        self.tokens.clone()
+        match &self.errors {
+            Some(errs) => Err(errs.clone()),
+            None => Ok(self.tokens.clone()),
+        }
     }
 
     fn new(source: &str) -> Self {
@@ -342,18 +340,14 @@ impl Scan for Scanner {
     }
 }
 
-pub fn scan_parse(raw_s: &str) -> Option<Vec<Stmt>> {
-    // TODO if debug enabled we should add this verbose logging
-    // println!("received: {raw_s}");
+pub fn scan_parse(raw_s: &str) -> Result<Vec<Stmt>, Vec<LoxErr>> {
+    debug!("received: {raw_s}");
     let mut scanner = Scanner::new(String::from(raw_s));
 
-    scanner.scan();
-    if scanner.errors.is_some() {
-        return None;
-    }
-    // TODO if debug enabled we should add this verbose logging
-    // println!("Here are the tokens that we found: {:#?}", &scanner.tokens);
-    let mut parser = parser::Parser::new(scanner.tokens);
+    let tokens = scanner.scan()?;
 
-    parser.parse().ok()
+    debug!("Here are the tokens that we found: {:#?}", &tokens);
+    let mut parser = parser::Parser::new(tokens);
+
+    parser.parse().map_err(|e| vec![e])
 }

@@ -1,3 +1,5 @@
+use log::error;
+
 use super::entities::expr::{ExprBinary, ExprGrouping, ExprUnary};
 use super::entities::stmt::{StmtExpr, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
@@ -46,12 +48,10 @@ impl Parser {
     }
 
     fn error(&self, err_token: &Token, message: &str) -> LoxErr {
-        let err = LoxErr::Parse {
+        LoxErr::Parse {
             token: err_token.clone(),
             message: message.to_string(),
-        };
-        eprintln!("{}", err);
-        err
+        }
     }
 
     fn synchronize(&mut self) {
@@ -114,7 +114,8 @@ impl Parser {
 
         match stmt {
             Ok(val) => Some(val),
-            Err(_) => {
+            Err(err) => {
+                error!("{}", err);
                 self.synchronize();
                 None
             }
