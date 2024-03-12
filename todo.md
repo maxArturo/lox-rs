@@ -4,7 +4,7 @@
 - [x] add C-style `/* ... */` comments
 - [x] comments with columns aren't working correctly
 - [x] move out the `pretty-print` capability into `std::fmt::Display`
-- [ ] [BUG] running `print """;` in REPL yields error, e.g.:
+- [x] [BUG] running `print """;` in REPL yields error, e.g.:
 ```shell
 This is the LOX interpreter.
 Enter statements separated by ENTER.

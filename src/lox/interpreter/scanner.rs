@@ -1,4 +1,4 @@
-use std::f64;
+use std::{f64, usize};
 
 use super::entities::{Literal, Stmt, Token, TokenType};
 use crate::lox::interpreter::{
@@ -285,7 +285,14 @@ impl Scanner {
     }
 
     fn curr_col(&self) -> i32 {
-        (1 + self.start - self.line_start).try_into().unwrap()
+        debug!(
+            "curr_col():\n self.start: {0}\n self.line_start: {1}, self.current: {2}",
+            self.start, self.line_start, self.current
+        );
+        if 1 + self.start >= self.line_start {
+            return (1 + self.start - self.line_start).try_into().unwrap();
+        }
+        self.current.try_into().unwrap()
     }
 
     fn error(&mut self, message: &str) {
