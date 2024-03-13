@@ -1,6 +1,7 @@
 name: Formatting and linting
 
-on: [push, pull_request]
+on: 
+  push
 
 jobs:
   check-formatting:
