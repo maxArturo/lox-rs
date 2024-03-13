@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::lox::interpreter::error::LoxErr;
 
 use super::super::error::Result;
@@ -37,5 +39,21 @@ impl Token {
         }
 
         Err(err())
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Token: type={}, line={}, column={}",
+            self.token_type, self.line, self.column
+        )?;
+
+        if let Some(literal) = &self.literal {
+            write!(f, ", literal={}", literal)?;
+        }
+
+        Ok(())
     }
 }

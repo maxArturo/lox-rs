@@ -3,7 +3,6 @@ use super::reader::{run_file, run_prompt};
 use std::env;
 use std::process::exit;
 
-
 pub fn read_input() {
     let args: Vec<String> = env::args().collect();
 
@@ -15,7 +14,7 @@ pub fn read_input() {
         }
         _ => {
             println!("USAGE: lox-rs [name of file]");
-            exit(64); // EX_USAGE
+            exit(64); // EX_USAGE error code
         }
     }
 }

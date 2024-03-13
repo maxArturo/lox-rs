@@ -2,9 +2,9 @@ use std::fmt;
 
 use super::entities::Token;
 
-pub type Result<T> = std::result::Result<T, LoxErr>;
+pub type Result<T, U = LoxErr> = std::result::Result<T, U>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LoxErr {
     Undefined {
         message: String,

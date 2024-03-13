@@ -1,13 +1,17 @@
-use std::f64;
+use std::{f64, usize};
 
-use super::entities::{Literal, Token, TokenType};
-use crate::lox::interpreter::{error::LoxErr, eval::Interpreter, parser};
+use super::entities::{Literal, Stmt, Token, TokenType};
+use crate::lox::interpreter::{
+    error::{LoxErr, Result},
+    parser,
+};
+use log::debug;
 
 #[derive(Debug)]
 pub struct Scanner {
     source: String,
     chars: Vec<char>,
-    has_errors: bool,
+    errors: Option<Vec<LoxErr>>,
     start: usize,
     current: usize,
     line: i32,
@@ -27,7 +31,7 @@ impl Scanner {
             line: 1,
             line_start: 0,
             col: 1,
-            has_errors: false,
+            errors: None,
             tokens: Vec::new(),
         }
     }
@@ -281,35 +285,46 @@ impl Scanner {
     }
 
     fn curr_col(&self) -> i32 {
-        (1 + self.start - self.line_start).try_into().unwrap()
+        if 1 + self.start >= self.line_start {
+            return (1 + self.start - self.line_start).try_into().unwrap();
+        }
+        self.current.try_into().unwrap()
     }
 
     fn error(&mut self, message: &str) {
-        eprintln!(
-            "{}",
-            LoxErr::Scan {
-                line: self.line,
-                col: self.col,
-                message: message.to_string()
+        let err = || LoxErr::Scan {
+            line: self.line,
+            col: self.col,
+            message: message.to_string(),
+        };
+
+        match &mut self.errors {
+            Some(errs) => {
+                errs.push(err());
             }
-        );
-        self.has_errors = true;
+            None => {
+                self.errors = Some(vec![err()]);
+            }
+        };
     }
 }
 
 pub trait Scan {
     fn new(source: &str) -> Self;
-    fn scan(&mut self) -> Vec<Token>;
+    fn scan(&mut self) -> Result<Vec<Token>, Vec<LoxErr>>;
 }
 
 impl Scan for Scanner {
-    fn scan(&mut self) -> Vec<Token> {
+    fn scan(&mut self) -> Result<Vec<Token>, Vec<LoxErr>> {
         while !self.is_at_end() {
             self.scan_token();
         }
         self.add_token(TokenType::Eof);
 
-        self.tokens.clone()
+        match &self.errors {
+            Some(errs) => Err(errs.clone()),
+            None => Ok(self.tokens.clone()),
+        }
     }
 
     fn new(source: &str) -> Self {
@@ -322,27 +337,20 @@ impl Scan for Scanner {
             line: 1,
             line_start: 0,
             col: 1,
-            has_errors: false,
+            errors: None,
             tokens: Vec::new(),
         }
     }
 }
 
-pub fn run_scanner(raw_s: &str) {
-    println!("received: {raw_s}");
+pub fn scan_parse(raw_s: &str) -> Result<Vec<Stmt>, Vec<LoxErr>> {
+    debug!("received: {raw_s}");
     let mut scanner = Scanner::new(String::from(raw_s));
 
-    scanner.scan();
-    if scanner.has_errors {
-        return;
-    }
-    println!("Here are the tokens that we found: {:#?}", &scanner.tokens);
-    // let mut parser =
-    let mut parser = parser::Parser::new(scanner.tokens);
+    let tokens = scanner.scan()?;
 
-    parser
-        .parse()
-        .and_then(|stmts| Interpreter::new().interpret(&stmts[..]))
-        .map_err(|err| println!("Error executing statements: \n{}", err))
-        .unwrap_or(())
+    debug!("Here are the tokens that we found: {:#?}", &tokens);
+    let mut parser = parser::Parser::new(tokens);
+
+    parser.parse().map_err(|e| vec![e])
 }

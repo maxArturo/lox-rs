@@ -1,6 +1,8 @@
+use log::debug;
+
 use super::{
     entities::{
-        expr::ExprGrouping,
+        expr::{ExprAssign, ExprGrouping},
         stmt::{StmtExpr, StmtPrint, StmtVar},
         Env, Expr, Literal, Stmt, Token, TokenType, Value,
     },
@@ -33,7 +35,7 @@ impl Interpreter {
     }
 
     fn error(&self, expr: Vec<&Expr>, message: Option<&str>) -> LoxErr {
-        let err = LoxErr::Eval {
+        LoxErr::Eval {
             expr: expr
                 .iter()
                 .map(|el| el.to_string())
@@ -42,18 +44,16 @@ impl Interpreter {
             message: message
                 .unwrap_or("Expression evaluation failed")
                 .to_string(),
-        };
-        eprintln!("{}", err);
-        err
+        }
     }
 }
 
 impl ExprEval<Value> for Interpreter {
-    fn literal(&self, literal: &Literal) -> Result<Value> {
+    fn literal(&mut self, literal: &Literal) -> Result<Value> {
         Ok(literal.clone())
     }
 
-    fn unary(&self, right: &Expr, operator: &Token) -> Result<Value> {
+    fn unary(&mut self, right: &Expr, operator: &Token) -> Result<Value> {
         let eval_right: Value = self.eval(right)?;
         let err_report = |other: Option<&str>| Err(self.error(vec![right], other));
 
@@ -73,7 +73,7 @@ impl ExprEval<Value> for Interpreter {
         }
     }
 
-    fn binary(&self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
+    fn binary(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
         let left_val = self.eval(left)?;
         let right_val = self.eval(right)?;
 
@@ -142,63 +142,74 @@ impl ExprEval<Value> for Interpreter {
         }
     }
 
-    fn grouping(&self, expression: &ExprGrouping) -> Result<Value> {
+    fn grouping(&mut self, expression: &ExprGrouping) -> Result<Value> {
         self.eval(&expression.expression)
     }
 
-    fn var(&self, expression: &Token) -> Result<Value> {
-        let res = self.env.get(expression.extract_identifier_str()?);
-        Ok(res?.clone())
+    fn var(&mut self, expression: &Token) -> Result<Value> {
+        let str = expression.extract_identifier_str()?;
+        let res = self.env.get(str)?;
+        Ok(res.clone())
+    }
+
+    fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
+        let val = self.eval(&expr.expression)?;
+        self.env
+            .define(token.extract_identifier_str()?, val.clone());
+        Ok(val)
     }
 }
 
 impl StmtExec<()> for Interpreter {
-    fn print_stmt(&self, stmt: &StmtPrint) -> Result<()> {
+    fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<()> {
         let val = self.eval(&stmt.expr)?;
+        debug!("the returned value is: {val}");
         println!("{}", val);
         Ok(())
     }
 
-    fn eval_stmt(&self, stmt: &StmtExpr) -> Result<()> {
+    fn eval_stmt(&mut self, stmt: &StmtExpr) -> Result<()> {
         self.eval(&stmt.expr)?;
         Ok(())
     }
 
     fn var_stmt(&mut self, var: &StmtVar) -> Result<()> {
-        self.env.define(
-            var.token.extract_identifier_str()?,
-            var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?,
-        );
+        let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
+        self.env.define(var.token.extract_identifier_str()?, val);
         Ok(())
     }
 }
 
-trait StmtExec<T> {
+trait StmtExec<T: std::fmt::Debug> {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<T> {
-        match stmt {
+        let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
-        }
+        };
+        debug!("statement execution result: {:?}", res);
+        res
     }
-    fn print_stmt(&self, expr: &StmtPrint) -> Result<T>;
-    fn eval_stmt(&self, expr: &StmtExpr) -> Result<T>;
+    fn print_stmt(&mut self, expr: &StmtPrint) -> Result<T>;
+    fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
 }
 
 trait ExprEval<T> {
-    fn eval(&self, expr: &Expr) -> Result<T> {
+    fn eval(&mut self, expr: &Expr) -> Result<T> {
         match expr {
             Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
             Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
             Expr::Grouping(grouping) => self.grouping(grouping),
             Expr::Literal(lit) => self.literal(lit),
             Expr::Var(var) => self.var(var),
+            Expr::Assign(token, expr) => self.assign(token, expr),
         }
     }
-    fn literal(&self, literal: &Literal) -> Result<T>;
-    fn unary(&self, right: &Expr, operator: &Token) -> Result<T>;
-    fn binary(&self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
-    fn grouping(&self, expression: &ExprGrouping) -> Result<T>;
-    fn var(&self, expression: &Token) -> Result<T>;
+    fn literal(&mut self, literal: &Literal) -> Result<T>;
+    fn unary(&mut self, right: &Expr, operator: &Token) -> Result<T>;
+    fn binary(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
+    fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
+    fn var(&mut self, expression: &Token) -> Result<T>;
+    fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
 }
