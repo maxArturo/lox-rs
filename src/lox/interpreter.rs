@@ -1,11 +1,10 @@
+mod entities;
+mod error;
 mod eval;
 mod input;
-mod scanner;
-mod reader;
-mod entities;
 mod parser;
-mod error;
+mod reader;
+mod scanner;
 
 pub(crate) use input::read_input as start;
 pub(super) use scanner::scan_parse;
-

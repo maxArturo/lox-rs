@@ -169,10 +169,7 @@ impl Parser {
                 }
                 _ => {
                     // explicitly not returning the error, but displaying it
-                    error!(
-                        "{}",
-                        self.error(&eq_token, "Invalid assignment target")
-                    );
+                    error!("{}", self.error(&eq_token, "Invalid assignment target"));
                 }
             }
         }
