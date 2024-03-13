@@ -18,4 +18,6 @@ attempt to subtract with overflow
 
 ```
 - [x] make persistent env and interpreter for REPL so that variables continue living
+- [x] add git precommit hooks locally
+- [x] add `rustfmt` gh action for the project
 

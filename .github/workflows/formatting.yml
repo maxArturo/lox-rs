@@ -1,0 +1,17 @@
+name: Formatting and linting
+
+on: [push, pull_request]
+
+jobs:
+  check-formatting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Run rustfmt
+        run: cargo fmt -- --check
