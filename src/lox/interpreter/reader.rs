@@ -1,8 +1,7 @@
+use log::error;
 use std::io::Write;
 use std::process::exit;
 use std::{fs, io};
-
-use log::error;
 
 use crate::lox::interpreter::eval::Interpreter;
 use crate::lox::interpreter::scan_parse;
@@ -48,6 +47,10 @@ pub fn run_prompt() {
 
 fn repl(interpreter: &mut Interpreter, str: &str) {
     let _ = scan_parse(str)
-        .map(|stmts| interpreter.interpret(&stmts[..]))
-        .inspect_err(|e| error!("{:?}", e));
+        .and_then(|stmts| interpreter.interpret(&stmts[..]).map_err(|e| vec![e]))
+        .inspect_err(|errs| {
+            for e in errs {
+                error!("{:?}", e);
+            }
+        });
 }

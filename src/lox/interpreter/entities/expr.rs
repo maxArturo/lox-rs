@@ -21,6 +21,12 @@ pub enum Expr {
     Literal(Literal),
     Grouping(Box<ExprGrouping>),
     Var(Token),
+    Assign(Token, Box<ExprAssign>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprAssign {
+    pub expression: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,6 +67,7 @@ impl fmt::Display for Expr {
                     .literal
                     .clone()
                     .map_or("None".to_string(), |t| t.to_string()),
+                Self::Assign(token, expr) => format!("token: {}, expr: {}", token, expr.expression),
             }
         )
     }

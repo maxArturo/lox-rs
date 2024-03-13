@@ -1,6 +1,6 @@
 use log::error;
 
-use super::entities::expr::{ExprBinary, ExprGrouping, ExprUnary};
+use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
 use super::entities::stmt::{StmtExpr, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
@@ -152,7 +152,32 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr> {
+        let eq_expr = self.equality()?;
+        if let Some(eq_token) = self.matches(&[TokenType::Equal]).cloned() {
+            let val = self.assignment()?;
+
+            match eq_expr {
+                Expr::Var(token) => {
+                    return Ok(Expr::Assign(
+                        token,
+                        Box::new(ExprAssign { expression: val }),
+                    ))
+                }
+                _ => {
+                    // explicitly not returning the error, but displaying it
+                    error!(
+                        "{}",
+                        self.error(&eq_token, "Invalid assignment target")
+                    );
+                }
+            }
+        }
+
+        Ok(eq_expr)
     }
 
     fn equality(&mut self) -> Result<Expr> {

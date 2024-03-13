@@ -17,5 +17,5 @@ thread 'main' panicked at src/lox/interpreter/scanner.rs:288:9:
 attempt to subtract with overflow
 
 ```
-- [ ] make persistent env and interpreter for REPL so that variables continue living
+- [x] make persistent env and interpreter for REPL so that variables continue living
 

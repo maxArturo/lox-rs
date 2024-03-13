@@ -285,10 +285,6 @@ impl Scanner {
     }
 
     fn curr_col(&self) -> i32 {
-        debug!(
-            "curr_col():\n self.start: {0}\n self.line_start: {1}, self.current: {2}",
-            self.start, self.line_start, self.current
-        );
         if 1 + self.start >= self.line_start {
             return (1 + self.start - self.line_start).try_into().unwrap();
         }
