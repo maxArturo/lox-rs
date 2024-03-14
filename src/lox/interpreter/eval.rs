@@ -3,7 +3,7 @@ use log::debug;
 use super::{
     entities::{
         expr::{ExprAssign, ExprGrouping},
-        stmt::{StmtExpr, StmtPrint, StmtVar},
+        stmt::{StmtBlock, StmtExpr, StmtPrint, StmtVar},
         Env, Expr, Literal, Stmt, Token, TokenType, Value,
     },
     error::{LoxErr, Result},
@@ -155,12 +155,23 @@ impl ExprEval<Value> for Interpreter {
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
         let val = self.eval(&expr.expression)?;
         self.env
-            .define(token.extract_identifier_str()?, val.clone());
+            .assign(token.extract_identifier_str()?, val.clone())?;
         Ok(val)
     }
 }
 
 impl StmtExec<()> for Interpreter {
+    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<()> {
+        let res = match stmt {
+            Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Expr(stmt) => self.eval_stmt(stmt),
+            Stmt::Var(stmt) => self.var_stmt(stmt),
+            Stmt::Block(stmt) => self.block_stmt(stmt, Env::with_env(self.env.clone())),
+        };
+        debug!("statement execution result: {:?}", res);
+        res
+    }
+
     fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<()> {
         let val = self.eval(&stmt.expr)?;
         debug!("the returned value is: {val}");
@@ -178,21 +189,27 @@ impl StmtExec<()> for Interpreter {
         self.env.define(var.token.extract_identifier_str()?, val);
         Ok(())
     }
+
+    fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<()> {
+        let prev_env = self.env.clone();
+        self.env = env;
+        debug!("curr env block status: {:?}", self.env);
+
+        for stmt in expr.stmts.as_slice() {
+            self.exec_stmt(stmt)?;
+        }
+
+        self.env = prev_env;
+        Ok(())
+    }
 }
 
 trait StmtExec<T: std::fmt::Debug> {
-    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<T> {
-        let res = match stmt {
-            Stmt::Print(stmt) => self.print_stmt(stmt),
-            Stmt::Expr(stmt) => self.eval_stmt(stmt),
-            Stmt::Var(stmt) => self.var_stmt(stmt),
-        };
-        debug!("statement execution result: {:?}", res);
-        res
-    }
+    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<T>;
     fn print_stmt(&mut self, expr: &StmtPrint) -> Result<T>;
     fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
+    fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<T>;
 }
 
 trait ExprEval<T> {

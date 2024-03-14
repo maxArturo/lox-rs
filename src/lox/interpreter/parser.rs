@@ -1,7 +1,7 @@
 use log::error;
 
 use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
-use super::entities::stmt::{StmtExpr, StmtPrint, StmtVar};
+use super::entities::stmt::{StmtBlock, StmtExpr, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
@@ -108,6 +108,8 @@ impl Parser {
             stmt = self.var_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
             stmt = self.print_stmt();
+        } else if self.matches(&[TokenType::LeftBrace]).is_some() {
+            stmt = self.block_stmt();
         } else {
             stmt = self.expr_stmt();
         }
@@ -126,6 +128,19 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(&TokenType::SemiColon, "Expected `;` after value.")?;
         Ok(Stmt::Print(StmtPrint { expr }))
+    }
+
+    fn block_stmt(&mut self) -> Result<Stmt> {
+        let mut stmts: Vec<Stmt> = Vec::new();
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            if let Some(s) = self.stmt() {
+                stmts.push(s)
+            }
+        }
+
+        self.consume(&TokenType::RightBrace, "Expected `}` after block end.")?;
+        Ok(Stmt::Block(StmtBlock { stmts }))
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
