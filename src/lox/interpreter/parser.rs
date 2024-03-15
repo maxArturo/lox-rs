@@ -1,7 +1,7 @@
 use log::error;
 
 use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
-use super::entities::stmt::{StmtBlock, StmtExpr, StmtPrint, StmtVar};
+use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
@@ -106,6 +106,8 @@ impl Parser {
         let stmt;
         if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
+        } else if self.matches(&[TokenType::If]).is_some() {
+            stmt = self.if_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
             stmt = self.print_stmt();
         } else if self.matches(&[TokenType::LeftBrace]).is_some() {
@@ -122,6 +124,31 @@ impl Parser {
                 None
             }
         }
+    }
+
+    fn if_stmt(&mut self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expected `(` after `if` statement.")?;
+        let cond = self.expression()?;
+        self.consume(&TokenType::RightParen, "Expected `)` after `if` condition.")?;
+
+        let then = self.stmt();
+        if then.is_none() {
+            return Err(self.error(self.peek(), "Error in `if` statement clause"));
+        }
+
+        let mut else_stmt = None;
+        if self.matches(&[TokenType::Else]).is_some() {
+            else_stmt = self.stmt();
+            if else_stmt.is_none() {
+                return Err(self.error(self.peek(), "Error in `if` statement `else` clause"));
+            }
+        }
+
+        Ok(Stmt::If(StmtIf {
+            cond,
+            then: Box::new(then.unwrap()),
+            else_stmt: else_stmt.map(Box::new),
+        }))
     }
 
     fn print_stmt(&mut self) -> Result<Stmt> {

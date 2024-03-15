@@ -6,6 +6,7 @@ pub enum Stmt {
     Print(StmtPrint),
     Var(StmtVar),
     Block(StmtBlock),
+    If(StmtIf),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,4 +28,11 @@ pub struct StmtVar {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtBlock {
     pub stmts: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StmtIf {
+    pub cond: Expr,
+    pub then: Box<Stmt>,
+    pub else_stmt: Option<Box<Stmt>>,
 }

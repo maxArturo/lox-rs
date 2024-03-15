@@ -3,7 +3,7 @@ use log::debug;
 use super::{
     entities::{
         expr::{ExprAssign, ExprGrouping},
-        stmt::{StmtBlock, StmtExpr, StmtPrint, StmtVar},
+        stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar},
         Env, Expr, Literal, Stmt, Token, TokenType, Value,
     },
     error::{LoxErr, Result},
@@ -26,7 +26,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn truthy(&self, val: Value) -> Result<Value> {
+    fn truthy(&mut self, val: Value) -> Result<Value> {
         Ok(Value::Boolean(match val {
             Value::Boolean(val) => val,
             Value::Nil => false,
@@ -167,6 +167,7 @@ impl StmtExec<()> for Interpreter {
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
             Stmt::Block(stmt) => self.block_stmt(stmt, Env::with_env(self.env.clone())),
+            Stmt::If(stmt) => self.if_stmt(stmt),
         };
         debug!("statement execution result: {:?}", res);
         res
@@ -202,6 +203,17 @@ impl StmtExec<()> for Interpreter {
         self.env = prev_env;
         Ok(())
     }
+
+    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<()> {
+        let res = self.eval(&stmt.cond)?;
+        if let Ok(Literal::Boolean(true)) = self.truthy(res) {
+            return self.exec_stmt(&stmt.then);
+        }
+        if let Some(other) = &stmt.else_stmt {
+            return self.exec_stmt(other);
+        }
+        Ok(())
+    }
 }
 
 trait StmtExec<T: std::fmt::Debug> {
@@ -210,6 +222,7 @@ trait StmtExec<T: std::fmt::Debug> {
     fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
     fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<T>;
+    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<T>;
 }
 
 trait ExprEval<T> {
