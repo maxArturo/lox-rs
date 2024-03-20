@@ -1,5 +1,7 @@
 use log::error;
 
+use crate::lox::interpreter::entities::expr::ExprLogical;
+
 use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
 use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
@@ -198,11 +200,13 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr> {
-        let eq_expr = self.equality()?;
+        // let eq_expr = self.equality()?;
+        let or_expr = self.or()?;
+
         if let Some(eq_token) = self.matches(&[TokenType::Equal]).cloned() {
             let val = self.assignment()?;
 
-            match eq_expr {
+            match or_expr {
                 Expr::Var(token) => {
                     return Ok(Expr::Assign(
                         token,
@@ -216,7 +220,37 @@ impl Parser {
             }
         }
 
-        Ok(eq_expr)
+        Ok(or_expr)
+    }
+
+    fn or(&mut self) -> Result<Expr> {
+        let mut expr = self.and()?;
+
+        while self.matches(&[TokenType::Or]).is_some() {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+            expr = Expr::Logical(Box::new(ExprLogical {
+                left: expr,
+                right,
+                operator,
+            }));
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr> {
+        let mut expr = self.equality()?;
+
+        while self.matches(&[TokenType::And]).is_some() {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::Logical(Box::new(ExprLogical {
+                left: expr,
+                right,
+                operator,
+            }));
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr> {

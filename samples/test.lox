@@ -22,3 +22,8 @@ print a;
 print b;
 print c;
 
+// if statements
+var first = true;
+var second = nil;
+if (first) if (second) print "all true"; else print "some not true";
+

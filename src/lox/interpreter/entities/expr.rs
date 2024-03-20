@@ -18,6 +18,7 @@ fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
 pub enum Expr {
     Unary(Box<ExprUnary>),
     Binary(Box<ExprBinary>),
+    Logical(Box<ExprLogical>),
     Literal(Literal),
     Grouping(Box<ExprGrouping>),
     Var(Token),
@@ -47,6 +48,13 @@ pub struct ExprBinary {
     pub operator: Token,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprLogical {
+    pub left: Expr,
+    pub right: Expr,
+    pub operator: Token,
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -61,6 +69,10 @@ impl fmt::Display for Expr {
                 Self::Binary(binary) => parenthesize(
                     &binary.operator.token_type.to_string(),
                     vec![&binary.left, &binary.right]
+                ),
+                Self::Logical(logical) => parenthesize(
+                    &logical.operator.token_type.to_string(),
+                    vec![&logical.left, &logical.right]
                 ),
                 Self::Literal(value) => value.to_string(),
                 Self::Var(var) => var

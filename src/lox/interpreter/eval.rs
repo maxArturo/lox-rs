@@ -158,6 +158,10 @@ impl ExprEval<Value> for Interpreter {
             .assign(token.extract_identifier_str()?, val.clone())?;
         Ok(val)
     }
+
+    fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
+        todo!()
+    }
 }
 
 impl StmtExec<()> for Interpreter {
@@ -230,6 +234,9 @@ trait ExprEval<T> {
         match expr {
             Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
             Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
+            Expr::Logical(logical) => {
+                self.logical(&logical.left, &logical.right, &logical.operator)
+            }
             Expr::Grouping(grouping) => self.grouping(grouping),
             Expr::Literal(lit) => self.literal(lit),
             Expr::Var(var) => self.var(var),
@@ -242,4 +249,5 @@ trait ExprEval<T> {
     fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
     fn var(&mut self, expression: &Token) -> Result<T>;
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
+    fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
 }
