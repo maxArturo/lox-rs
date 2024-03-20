@@ -26,12 +26,12 @@ impl Interpreter {
         Ok(())
     }
 
-    fn truthy(&mut self, val: Value) -> Result<Value> {
-        Ok(Value::Boolean(match val {
-            Value::Boolean(val) => val,
+    fn truthy(&mut self, val: &Value) -> Value {
+        Value::Boolean(match val {
+            &Value::Boolean(val) => val,
             Value::Nil => false,
             _ => true,
-        }))
+        })
     }
 
     fn error(&self, expr: Vec<&Expr>, message: Option<&str>) -> LoxErr {
@@ -65,7 +65,7 @@ impl ExprEval<Value> for Interpreter {
                     eval_right
                 ))),
             },
-            TokenType::Bang => self.truthy(eval_right),
+            TokenType::Bang => Ok(self.truthy(&eval_right)),
             _ => err_report(Some(&format!(
                 "Unexpected token in unary expr: `{}`",
                 operator.token_type
@@ -160,7 +160,30 @@ impl ExprEval<Value> for Interpreter {
     }
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
-        todo!()
+        let left_val = self.eval(left)?;
+        let left_truthy = self.truthy(&left_val);
+
+        match operator.token_type {
+            TokenType::And => {
+                if let Value::Boolean(true) = left_truthy {
+                    return self.eval(right);
+                }
+                Ok(Value::Boolean(false))
+            }
+            TokenType::Or => {
+                if let Value::Boolean(true) = left_truthy {
+                    return Ok(left_val);
+                }
+                self.eval(right)
+            }
+            _ => Err(self.error(
+                vec![left, right],
+                Some(&format!(
+                    "Unexpected token type in logic expr: {:#?}",
+                    operator
+                )),
+            )),
+        }
     }
 }
 
@@ -210,7 +233,7 @@ impl StmtExec<()> for Interpreter {
 
     fn if_stmt(&mut self, stmt: &StmtIf) -> Result<()> {
         let res = self.eval(&stmt.cond)?;
-        if let Ok(Literal::Boolean(true)) = self.truthy(res) {
+        if let Literal::Boolean(true) = self.truthy(&res) {
             return self.exec_stmt(&stmt.then);
         }
         if let Some(other) = &stmt.else_stmt {
