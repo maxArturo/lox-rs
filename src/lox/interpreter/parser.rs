@@ -1,7 +1,9 @@
 use log::error;
 
+use crate::lox::interpreter::entities::expr::ExprLogical;
+
 use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
-use super::entities::stmt::{StmtBlock, StmtExpr, StmtPrint, StmtVar};
+use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
@@ -106,6 +108,8 @@ impl Parser {
         let stmt;
         if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
+        } else if self.matches(&[TokenType::If]).is_some() {
+            stmt = self.if_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
             stmt = self.print_stmt();
         } else if self.matches(&[TokenType::LeftBrace]).is_some() {
@@ -122,6 +126,31 @@ impl Parser {
                 None
             }
         }
+    }
+
+    fn if_stmt(&mut self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expected `(` after `if` statement.")?;
+        let cond = self.expression()?;
+        self.consume(&TokenType::RightParen, "Expected `)` after `if` condition.")?;
+
+        let then = self.stmt();
+        if then.is_none() {
+            return Err(self.error(self.peek(), "Error in `if` statement clause"));
+        }
+
+        let mut else_stmt = None;
+        if self.matches(&[TokenType::Else]).is_some() {
+            else_stmt = self.stmt();
+            if else_stmt.is_none() {
+                return Err(self.error(self.peek(), "Error in `if` statement `else` clause"));
+            }
+        }
+
+        Ok(Stmt::If(StmtIf {
+            cond,
+            then: Box::new(then.unwrap()),
+            else_stmt: else_stmt.map(Box::new),
+        }))
     }
 
     fn print_stmt(&mut self) -> Result<Stmt> {
@@ -171,11 +200,13 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr> {
-        let eq_expr = self.equality()?;
+        // let eq_expr = self.equality()?;
+        let or_expr = self.or()?;
+
         if let Some(eq_token) = self.matches(&[TokenType::Equal]).cloned() {
             let val = self.assignment()?;
 
-            match eq_expr {
+            match or_expr {
                 Expr::Var(token) => {
                     return Ok(Expr::Assign(
                         token,
@@ -189,7 +220,37 @@ impl Parser {
             }
         }
 
-        Ok(eq_expr)
+        Ok(or_expr)
+    }
+
+    fn or(&mut self) -> Result<Expr> {
+        let mut expr = self.and()?;
+
+        while self.matches(&[TokenType::Or]).is_some() {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+            expr = Expr::Logical(Box::new(ExprLogical {
+                left: expr,
+                right,
+                operator,
+            }));
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr> {
+        let mut expr = self.equality()?;
+
+        while self.matches(&[TokenType::And]).is_some() {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::Logical(Box::new(ExprLogical {
+                left: expr,
+                right,
+                operator,
+            }));
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr> {

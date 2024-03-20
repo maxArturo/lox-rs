@@ -3,7 +3,7 @@ use log::debug;
 use super::{
     entities::{
         expr::{ExprAssign, ExprGrouping},
-        stmt::{StmtBlock, StmtExpr, StmtPrint, StmtVar},
+        stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar},
         Env, Expr, Literal, Stmt, Token, TokenType, Value,
     },
     error::{LoxErr, Result},
@@ -26,12 +26,12 @@ impl Interpreter {
         Ok(())
     }
 
-    fn truthy(&self, val: Value) -> Result<Value> {
-        Ok(Value::Boolean(match val {
-            Value::Boolean(val) => val,
+    fn truthy(&mut self, val: &Value) -> Value {
+        Value::Boolean(match val {
+            &Value::Boolean(val) => val,
             Value::Nil => false,
             _ => true,
-        }))
+        })
     }
 
     fn error(&self, expr: Vec<&Expr>, message: Option<&str>) -> LoxErr {
@@ -65,7 +65,7 @@ impl ExprEval<Value> for Interpreter {
                     eval_right
                 ))),
             },
-            TokenType::Bang => self.truthy(eval_right),
+            TokenType::Bang => Ok(self.truthy(&eval_right)),
             _ => err_report(Some(&format!(
                 "Unexpected token in unary expr: `{}`",
                 operator.token_type
@@ -158,6 +158,33 @@ impl ExprEval<Value> for Interpreter {
             .assign(token.extract_identifier_str()?, val.clone())?;
         Ok(val)
     }
+
+    fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
+        let left_val = self.eval(left)?;
+        let left_truthy = self.truthy(&left_val);
+
+        match operator.token_type {
+            TokenType::And => {
+                if let Value::Boolean(true) = left_truthy {
+                    return self.eval(right);
+                }
+                Ok(Value::Boolean(false))
+            }
+            TokenType::Or => {
+                if let Value::Boolean(true) = left_truthy {
+                    return Ok(left_val);
+                }
+                self.eval(right)
+            }
+            _ => Err(self.error(
+                vec![left, right],
+                Some(&format!(
+                    "Unexpected token type in logic expr: {:#?}",
+                    operator
+                )),
+            )),
+        }
+    }
 }
 
 impl StmtExec<()> for Interpreter {
@@ -167,6 +194,7 @@ impl StmtExec<()> for Interpreter {
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
             Stmt::Block(stmt) => self.block_stmt(stmt, Env::with_env(self.env.clone())),
+            Stmt::If(stmt) => self.if_stmt(stmt),
         };
         debug!("statement execution result: {:?}", res);
         res
@@ -202,6 +230,17 @@ impl StmtExec<()> for Interpreter {
         self.env = prev_env;
         Ok(())
     }
+
+    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<()> {
+        let res = self.eval(&stmt.cond)?;
+        if let Literal::Boolean(true) = self.truthy(&res) {
+            return self.exec_stmt(&stmt.then);
+        }
+        if let Some(other) = &stmt.else_stmt {
+            return self.exec_stmt(other);
+        }
+        Ok(())
+    }
 }
 
 trait StmtExec<T: std::fmt::Debug> {
@@ -210,6 +249,7 @@ trait StmtExec<T: std::fmt::Debug> {
     fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
     fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<T>;
+    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<T>;
 }
 
 trait ExprEval<T> {
@@ -217,6 +257,9 @@ trait ExprEval<T> {
         match expr {
             Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
             Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
+            Expr::Logical(logical) => {
+                self.logical(&logical.left, &logical.right, &logical.operator)
+            }
             Expr::Grouping(grouping) => self.grouping(grouping),
             Expr::Literal(lit) => self.literal(lit),
             Expr::Var(var) => self.var(var),
@@ -229,4 +272,5 @@ trait ExprEval<T> {
     fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
     fn var(&mut self, expression: &Token) -> Result<T>;
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
+    fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
 }
