@@ -3,7 +3,7 @@ use log::error;
 use crate::lox::interpreter::entities::expr::ExprLogical;
 
 use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
-use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar};
+use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
 
@@ -112,6 +112,8 @@ impl Parser {
             stmt = self.if_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
             stmt = self.print_stmt();
+        } else if self.matches(&[TokenType::While]).is_some() {
+            stmt = self.while_stmt();
         } else if self.matches(&[TokenType::LeftBrace]).is_some() {
             stmt = self.block_stmt();
         } else {
@@ -125,6 +127,24 @@ impl Parser {
                 self.synchronize();
                 None
             }
+        }
+    }
+
+    fn while_stmt(&mut self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expected `(` after `while` keyword.")?;
+        let expr = self.expression()?;
+        self.consume(
+            &TokenType::RightParen,
+            "Expected `)` after `while` condition.",
+        )?;
+
+        if let Some(stmt) = self.stmt() {
+            Ok(Stmt::While(StmtWhile {
+                stmt: Box::new(stmt),
+                expr,
+            }))
+        } else {
+            Err(self.error(self.peek(), "Error in `while` statement body"))
         }
     }
 

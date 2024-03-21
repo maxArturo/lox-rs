@@ -3,7 +3,7 @@ use log::debug;
 use super::{
     entities::{
         expr::{ExprAssign, ExprGrouping},
-        stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar},
+        stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
         Env, Expr, Literal, Stmt, Token, TokenType, Value,
     },
     error::{LoxErr, Result},
@@ -195,6 +195,7 @@ impl StmtExec<()> for Interpreter {
             Stmt::Var(stmt) => self.var_stmt(stmt),
             Stmt::Block(stmt) => self.block_stmt(stmt, Env::with_env(self.env.clone())),
             Stmt::If(stmt) => self.if_stmt(stmt),
+            Stmt::While(stmt) => self.while_stmt(stmt),
         };
         debug!("statement execution result: {:?}", res);
         res
@@ -203,7 +204,7 @@ impl StmtExec<()> for Interpreter {
     fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<()> {
         let val = self.eval(&stmt.expr)?;
         debug!("the returned value is: {val}");
-        println!("{}", val);
+        println!("==> {}", val);
         Ok(())
     }
 
@@ -241,6 +242,16 @@ impl StmtExec<()> for Interpreter {
         }
         Ok(())
     }
+
+    fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<()> {
+        let mut res = self.eval(&stmt.expr)?;
+
+        while let Literal::Boolean(true) = self.truthy(&res) {
+            self.exec_stmt(&stmt.stmt)?;
+            res = self.eval(&stmt.expr)?;
+        }
+        Ok(())
+    }
 }
 
 trait StmtExec<T: std::fmt::Debug> {
@@ -250,6 +261,7 @@ trait StmtExec<T: std::fmt::Debug> {
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
     fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<T>;
     fn if_stmt(&mut self, stmt: &StmtIf) -> Result<T>;
+    fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<T>;
 }
 
 trait ExprEval<T> {
