@@ -193,7 +193,7 @@ impl StmtExec<()> for Interpreter {
             Stmt::Print(stmt) => self.print_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
-            Stmt::Block(stmt) => self.block_stmt(stmt, Env::with_env(self.env.clone())),
+            Stmt::Block(stmt) => self.block_stmt(stmt),
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
@@ -219,16 +219,18 @@ impl StmtExec<()> for Interpreter {
         Ok(())
     }
 
-    fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<()> {
-        let prev_env = self.env.clone();
-        self.env = env;
+    fn block_stmt(&mut self, expr: &StmtBlock) -> Result<()> {
+        self.env = Env::with_env(self.env.clone());
         debug!("curr env block status: {:?}", self.env);
 
         for stmt in expr.stmts.as_slice() {
             self.exec_stmt(stmt)?;
         }
 
-        self.env = prev_env;
+        self.env = *self.env.enclosing.take().ok_or(LoxErr::Undefined {
+            message: "unexpected empty parent env for block statement".to_string(),
+        })?;
+
         Ok(())
     }
 
@@ -259,7 +261,7 @@ trait StmtExec<T: std::fmt::Debug> {
     fn print_stmt(&mut self, expr: &StmtPrint) -> Result<T>;
     fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
-    fn block_stmt(&mut self, expr: &StmtBlock, env: Env<Value>) -> Result<T>;
+    fn block_stmt(&mut self, expr: &StmtBlock) -> Result<T>;
     fn if_stmt(&mut self, stmt: &StmtIf) -> Result<T>;
     fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<T>;
 }
