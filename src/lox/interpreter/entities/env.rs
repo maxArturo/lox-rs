@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt::Debug};
 #[derive(Debug, Clone)]
 pub struct Env<T> {
     values: HashMap<String, T>,
-    enclosing: Option<Box<Env<T>>>,
+    pub enclosing: Option<Box<Env<T>>>,
 }
 
 impl<T> Env<T>

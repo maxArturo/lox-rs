@@ -7,6 +7,7 @@ pub enum Stmt {
     Var(StmtVar),
     Block(StmtBlock),
     If(StmtIf),
+    While(StmtWhile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,6 +29,12 @@ pub struct StmtVar {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtBlock {
     pub stmts: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StmtWhile {
+    pub stmt: Box<Stmt>,
+    pub expr: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq)]

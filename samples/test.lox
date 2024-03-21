@@ -27,8 +27,17 @@ var first = true;
 var second = nil;
 if (first) if (second) print "all true"; else print "some not true";
 
-
 // logic statements
 print "hi" and 2; // 2.
 print nil or "yes"; // "yes".
+
+// while statements
+
+var n = 0;
+while (n < 1) {
+  print "yo this is n: " + n;
+  n = n + 1;
+  print "after adding: " + n;
+  print "is n < 1?: "; print  (n < 1);
+}
 
