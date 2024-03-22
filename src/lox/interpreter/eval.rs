@@ -220,17 +220,14 @@ impl StmtExec<()> for Interpreter {
     }
 
     fn block_stmt(&mut self, expr: &StmtBlock) -> Result<()> {
-        self.env = Env::with_env(self.env.clone());
+        self.env.open_scope();
         debug!("curr env block status: {:?}", self.env);
 
         for stmt in expr.stmts.as_slice() {
             self.exec_stmt(stmt)?;
         }
 
-        self.env = *self.env.enclosing.take().ok_or(LoxErr::Undefined {
-            message: "unexpected empty parent env for block statement".to_string(),
-        })?;
-
+        self.env.close_scope();
         Ok(())
     }
 
