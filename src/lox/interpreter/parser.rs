@@ -108,6 +108,8 @@ impl Parser {
         let stmt;
         if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
+        } else if self.matches(&[TokenType::For]).is_some() {
+            stmt = self.for_stmt();
         } else if self.matches(&[TokenType::If]).is_some() {
             stmt = self.if_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
@@ -146,6 +148,62 @@ impl Parser {
         } else {
             Err(self.error(self.peek(), "Error in `while` statement body"))
         }
+    }
+
+    /// Desugars a `for` into `StmtBlock` and `StmtWhile` statements.
+    fn for_stmt(&mut self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expected `(` after `for` statement.")?;
+        let init;
+
+        if self.matches(&[TokenType::SemiColon]).is_some() {
+            init = None;
+        } else if self.matches(&[TokenType::Var]).is_some() {
+            init = Some(self.var_stmt()?);
+        } else {
+            init = Some(self.expr_stmt()?);
+        }
+
+        let mut cond = None;
+        if !self.check(&TokenType::SemiColon) {
+            cond = Some(self.expression()?);
+        }
+        self.consume(&TokenType::SemiColon, "Expected `;` after `for` condition.")?;
+
+        let mut incr = None;
+        if !self.check(&TokenType::RightParen) {
+            incr = Some(self.expression()?);
+        }
+        self.consume(&TokenType::RightParen, "Expected `)` after `for` clause.")?;
+
+        let mut body = self
+            .stmt()
+            .ok_or(self.error(self.peek(), "Error in `for` statement clause"))?;
+
+        if incr.is_some() {
+            body = Stmt::Block(StmtBlock {
+                stmts: vec![
+                    body,
+                    Stmt::Expr(StmtExpr {
+                        expr: incr.unwrap(),
+                    }),
+                ],
+            });
+        }
+
+        if cond.is_none() {
+            cond = Some(Expr::Literal(Literal::Boolean(false)));
+        }
+        body = Stmt::While(StmtWhile {
+            expr: cond.unwrap(),
+            stmt: Box::new(body),
+        });
+
+        if init.is_some() {
+            body = Stmt::Block(StmtBlock {
+                stmts: vec![init.unwrap(), body],
+            });
+        }
+        Ok(body)
     }
 
     fn if_stmt(&mut self) -> Result<Stmt> {

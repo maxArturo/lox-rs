@@ -41,3 +41,15 @@ while (n < 1) {
   print "is n < 1?: "; print  (n < 1);
 }
 
+// testing for with fibonacci sequence
+
+print "printing the fibonacci sequence up to 10000";
+var a = 0;
+var temp;
+
+for (var b = 1; a < 1000; b = temp + b) {
+  print a;
+  temp = a;
+  a = b;
+}
+

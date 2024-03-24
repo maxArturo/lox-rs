@@ -94,16 +94,12 @@ where
     }
 
     fn assign(&mut self, name: &str, val: T) -> Result<()> {
+        debug!("[assign] curr values: {:?}", self);
         if self.values.contains_key(name) {
             self.values.insert(name.to_string(), val);
             return Ok(());
         }
-        if self
-            .parent
-            .as_mut()
-            .and_then(|e| e.values.contains_key(name).then_some(true))
-            .is_some()
-        {
+        if self.parent.is_some() {
             self.parent.as_mut().unwrap().assign(name, val)?;
             return Ok(());
         }

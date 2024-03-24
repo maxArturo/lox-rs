@@ -10,6 +10,8 @@ pub enum Stmt {
     While(StmtWhile),
 }
 
+type StmtB = Box<Stmt>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtExpr {
     pub expr: Expr,
@@ -33,13 +35,13 @@ pub struct StmtBlock {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtWhile {
-    pub stmt: Box<Stmt>,
+    pub stmt: StmtB,
     pub expr: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtIf {
     pub cond: Expr,
-    pub then: Box<Stmt>,
-    pub else_stmt: Option<Box<Stmt>>,
+    pub then: StmtB,
+    pub else_stmt: Option<StmtB>,
 }
