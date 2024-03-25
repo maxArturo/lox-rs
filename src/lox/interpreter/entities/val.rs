@@ -6,7 +6,13 @@ pub enum Literal {
     Boolean(bool),
     Number(f64),
     String(String),
+    Func(Function),
     Nil,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Function {
+    arity: u32,
 }
 
 /// Holds rust-land computed values from lox expressions and literals

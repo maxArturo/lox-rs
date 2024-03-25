@@ -109,6 +109,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "loxrs_entities"
+version = "0.1.0"
+
+[[package]]
+name = "loxrs_env"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "log",
+ "loxrs_entities",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,5 +1,4 @@
 mod entities;
-mod error;
 mod eval;
 mod input;
 mod parser;

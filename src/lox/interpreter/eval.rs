@@ -1,4 +1,8 @@
+use std::vec;
+
 use log::debug;
+
+use crate::lox::interpreter::entities::fns::Callable;
 
 use super::{
     entities::{
@@ -185,6 +189,34 @@ impl ExprEval<Value> for Interpreter {
             )),
         }
     }
+
+    fn call(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<Value> {
+        let callee: Box<dyn Callable> = match self.eval(callee)? {
+            Literal::Func(val) => Box::new(val),
+            _ => {
+                return Err(LoxErr::Eval {
+                    expr: callee.to_string(),
+                    message: "Invalid call".to_string(),
+                })
+            }
+        };
+
+        if callee.arity() != args.len() {
+            return Err(LoxErr::Eval {
+                expr: format!("{:?}", args),
+                message: format!("Expected {} args but got {}", callee.arity(), args.len())
+                    .to_string(),
+            });
+        }
+
+        let mut args_eval = vec![];
+
+        for arg in args {
+            args_eval.push(self.eval(arg)?);
+        }
+
+        callee.call(self, &args_eval)
+    }
 }
 
 impl StmtExec<()> for Interpreter {
@@ -275,6 +307,7 @@ trait ExprEval<T> {
             Expr::Literal(lit) => self.literal(lit),
             Expr::Var(var) => self.var(var),
             Expr::Assign(token, expr) => self.assign(token, expr),
+            Expr::Call(call) => self.call(&call.callee, &call.paren, &call.args),
         }
     }
     fn literal(&mut self, literal: &Literal) -> Result<T>;
@@ -284,4 +317,5 @@ trait ExprEval<T> {
     fn var(&mut self, expression: &Token) -> Result<T>;
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
+    fn call(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<T>;
 }

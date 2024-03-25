@@ -2,10 +2,12 @@ use log::error;
 
 use crate::lox::interpreter::entities::expr::ExprLogical;
 
-use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
+use super::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
 use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
 use super::error::{LoxErr, Result};
+
+const MAX_ARGS_LEN: usize = 255;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -404,7 +406,46 @@ impl Parser {
             let right = self.unary()?;
             return Ok(Expr::Unary(Box::new(ExprUnary { right, operator })));
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.matches(&[TokenType::LeftParen]).is_some() {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr> {
+        let mut args = vec![];
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if args.len() >= MAX_ARGS_LEN {
+                    // we throw the error here nonetheless
+                    return Err(LoxErr::Parse {
+                        token: self.peek().clone(),
+                        message: format!("No more than {} args are allowed", MAX_ARGS_LEN),
+                    });
+                }
+                args.push(self.expression()?);
+                if self.matches(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(&TokenType::RightParen, "Expected ) after args list")?;
+        Ok(Expr::Call(Box::new(ExprCall {
+            callee,
+            paren: paren.clone(),
+            args,
+        })))
     }
 
     fn primary(&mut self) -> Result<Expr> {
