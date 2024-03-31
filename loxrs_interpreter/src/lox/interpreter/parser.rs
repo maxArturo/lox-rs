@@ -5,7 +5,8 @@ use crate::lox::interpreter::entities::expr::ExprLogical;
 use super::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
 use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
 use super::entities::{Expr, Literal, Stmt, Token, TokenType};
-use super::error::{LoxErr, Result};
+
+use loxrs_entities::{LoxErr, Result};
 
 const MAX_ARGS_LEN: usize = 255;
 
@@ -53,8 +54,9 @@ impl Parser {
 
     fn error(&self, err_token: &Token, message: &str) -> LoxErr {
         LoxErr::Parse {
-            token: err_token.clone(),
-            message: message.to_string(),
+            token: err_token.to_string(),
+            line: err_token.line.to_string(),
+            column: err_token.column.to_string(),
         }
     }
 
@@ -193,7 +195,7 @@ impl Parser {
         }
 
         if cond.is_none() {
-            cond = Some(Expr::Literal(Literal::Boolean(false)));
+            cond = Some(Expr::Literal(Box::new(Literal::Boolean(false))));
         }
         body = Stmt::While(StmtWhile {
             expr: cond.unwrap(),
@@ -428,9 +430,15 @@ impl Parser {
             loop {
                 if args.len() >= MAX_ARGS_LEN {
                     // we throw the error here nonetheless
+                    let token = self.peek();
+
                     return Err(LoxErr::Parse {
-                        token: self.peek().clone(),
-                        message: format!("No more than {} args are allowed", MAX_ARGS_LEN),
+                        token: format!(
+                            "No more than {} args are allowed for {}",
+                            MAX_ARGS_LEN, token
+                        ),
+                        line: token.line.to_string(),
+                        column: token.column.to_string(),
                     });
                 }
                 args.push(self.expression()?);
@@ -450,23 +458,23 @@ impl Parser {
 
     fn primary(&mut self) -> Result<Expr> {
         if self.matches(&[TokenType::False]).is_some() {
-            return Ok(Expr::Literal(Literal::Boolean(false)));
+            return Ok(Expr::Literal(Box::new(Literal::Boolean(false))));
         }
 
         if self.matches(&[TokenType::True]).is_some() {
-            return Ok(Expr::Literal(Literal::Boolean(true)));
+            return Ok(Expr::Literal(Box::new(Literal::Boolean(true))));
         }
 
         if self.matches(&[TokenType::Nil]).is_some() {
-            return Ok(Expr::Literal(Literal::Nil));
+            return Ok(Expr::Literal(Box::new(Literal::Nil)));
         }
 
         // handle string and num literals
         if let Some(token) = self.matches(&[TokenType::String, TokenType::Number]) {
-            return Ok(Expr::Literal(match &token.literal {
+            return Ok(Expr::Literal(Box::new(match &token.literal {
                 Some(lit) => lit.clone(),
                 None => Literal::Nil,
-            }));
+            })));
         }
 
         if let Some(token) = self.matches(&[TokenType::Identifier]) {

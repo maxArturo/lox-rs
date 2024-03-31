@@ -17,7 +17,7 @@ pub enum LoxErr {
     Parse {
         token: String,
         line: String,
-        col: String,
+        column: String,
     },
     Scan {
         line: i32,
@@ -32,9 +32,13 @@ impl fmt::Display for LoxErr {
             f,
             "{}",
             match self {
-                Self::Parse { token, line, col } => format!(
+                Self::Parse {
+                    token,
+                    line,
+                    column,
+                } => format!(
                     "Parsing error for token: {}\nat line: {}, col: {}",
-                    token, line, col
+                    token, line, column
                 ),
                 Self::Eval { expr, message } => {
                     format!("Eval error: {}\n for expression of type: {}", expr, message)

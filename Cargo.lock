@@ -101,14 +101,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
-name = "lox-rs"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "log",
-]
-
-[[package]]
 name = "loxrs_entities"
 version = "0.1.0"
 
@@ -119,6 +111,16 @@ dependencies = [
  "env_logger",
  "log",
  "loxrs_entities",
+]
+
+[[package]]
+name = "loxrs_interpreter"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "log",
+ "loxrs_entities",
+ "loxrs_env",
 ]
 
 [[package]]

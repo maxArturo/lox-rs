@@ -4,14 +4,14 @@ use log::debug;
 
 use crate::lox::interpreter::entities::fns::Callable;
 
-use super::{
-    entities::{
-        expr::{ExprAssign, ExprGrouping},
-        stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
-        Env, Expr, Literal, Stmt, Token, TokenType, Value,
-    },
-    error::{LoxErr, Result},
+use super::entities::{
+    expr::{ExprAssign, ExprGrouping},
+    stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
+    Expr, Literal, Stmt, Token, TokenType, Value,
 };
+
+use loxrs_entities::{LoxErr, Result};
+use loxrs_env::Env;
 
 #[derive(Debug)]
 pub struct Interpreter {

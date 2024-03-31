@@ -1,6 +1,6 @@
 use crate::lox::interpreter::eval::Interpreter;
+use loxrs_entities::Result;
 
-use super::super::error::Result;
 use super::val::{Function, Value};
 
 pub trait Callable {
@@ -12,5 +12,15 @@ pub trait Callable {
 }
 
 impl Callable for Function {
-    // add code here
+    fn call(&self, interpreter: &mut Interpreter, args: &[Value]) -> Result<Value> {
+        todo!()
+    }
+
+    fn arity(&self) -> usize {
+        todo!()
+    }
+
+    fn name(&self) -> u32 {
+        todo!()
+    }
 }

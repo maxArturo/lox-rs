@@ -13,6 +13,7 @@ pub enum Literal {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function {
     arity: u32,
+    name: String,
 }
 
 /// Holds rust-land computed values from lox expressions and literals
@@ -22,6 +23,7 @@ impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str_val = match self {
             Self::String(str) => str,
+            Self::Func(func) => &func.name,
             Self::Number(num) => {
                 return write!(f, "{}", num);
             }
