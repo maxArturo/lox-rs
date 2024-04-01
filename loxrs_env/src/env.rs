@@ -1,5 +1,5 @@
 use log::debug;
-use loxrs_entities::{LoxErr, Result};
+use loxrs_types::{LoxErr, Result};
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
 type Link<T> = Option<Box<Scope<T>>>;

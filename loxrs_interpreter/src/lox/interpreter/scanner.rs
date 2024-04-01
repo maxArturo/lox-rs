@@ -1,10 +1,10 @@
 use std::{f64, usize};
 
-use super::entities::{Literal, Stmt, Token, TokenType};
 use crate::lox::interpreter::parser;
 use log::debug;
+use loxrs_entities::{Literal, Stmt, Token, TokenType};
 
-use loxrs_entities::{LoxErr, Result};
+use loxrs_types::{LoxErr, Result};
 
 #[derive(Debug)]
 pub struct Scanner {

@@ -1,12 +1,12 @@
 use log::error;
 
-use crate::lox::interpreter::entities::expr::ExprLogical;
+use loxrs_entities::expr::ExprLogical;
 
-use super::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
-use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
-use super::entities::{Expr, Literal, Stmt, Token, TokenType};
+use loxrs_entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
+use loxrs_entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
+use loxrs_entities::{Expr, Literal, Stmt, Token, TokenType};
 
-use loxrs_entities::{LoxErr, Result};
+use loxrs_types::{LoxErr, Result};
 
 const MAX_ARGS_LEN: usize = 255;
 

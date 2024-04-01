@@ -1,1 +1,1 @@
-workspace = { members = [ "loxrs_entities","loxrs_env", "loxrs_interpreter"] }
+workspace = { members = [ "loxrs_entities","loxrs_env", "loxrs_interpreter", "loxrs_types"] }

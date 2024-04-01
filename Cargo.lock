@@ -103,6 +103,10 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 [[package]]
 name = "loxrs_entities"
 version = "0.1.0"
+dependencies = [
+ "loxrs_env",
+ "loxrs_types",
+]
 
 [[package]]
 name = "loxrs_env"
@@ -110,7 +114,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "log",
- "loxrs_entities",
+ "loxrs_types",
 ]
 
 [[package]]
@@ -121,7 +125,12 @@ dependencies = [
  "log",
  "loxrs_entities",
  "loxrs_env",
+ "loxrs_types",
 ]
+
+[[package]]
+name = "loxrs_types"
+version = "0.1.0"
 
 [[package]]
 name = "memchr"

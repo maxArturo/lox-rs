@@ -1,7 +1,7 @@
-use crate::lox::interpreter::eval::Interpreter;
-use loxrs_entities::Result;
+use loxrs_entities::val::{Function, Value};
+use loxrs_types::Result;
 
-use super::val::{Function, Value};
+use super::eval::Interpreter;
 
 pub trait Callable {
     fn call(&self, interpreter: &mut Interpreter, args: &[Value]) -> Result<Value>;

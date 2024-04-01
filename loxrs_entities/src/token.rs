@@ -1,6 +1,6 @@
 use core::fmt;
 
-use loxrs_entities::{LoxErr, Result};
+use loxrs_types::{LoxErr, Result};
 
 use super::{val::Literal, TokenType};
 

@@ -1,5 +1,5 @@
-mod entities;
 mod eval;
+mod fns;
 mod input;
 mod parser;
 mod reader;

@@ -2,16 +2,16 @@ use std::vec;
 
 use log::debug;
 
-use crate::lox::interpreter::entities::fns::Callable;
-
-use super::entities::{
+use loxrs_entities::{
     expr::{ExprAssign, ExprGrouping},
     stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
 
-use loxrs_entities::{LoxErr, Result};
 use loxrs_env::Env;
+use loxrs_types::{LoxErr, Result};
+
+use super::fns::Callable;
 
 #[derive(Debug)]
 pub struct Interpreter {

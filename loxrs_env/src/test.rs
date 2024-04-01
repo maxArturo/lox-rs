@@ -39,4 +39,7 @@ fn scope_assignment() {
     assert!(env.assign("foo", "cow".to_owned()).is_ok());
     env.close_scope();
     assert!(env.get("foo").is_ok_and(|str| str == "cow"));
+
+    env.close_scope();
+    assert!(env.get("foo").is_err());
 }
