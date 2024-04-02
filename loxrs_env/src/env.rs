@@ -5,7 +5,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 type Link<T> = Option<Box<Scope<T>>>;
 type Globals<T> = Option<Rc<Scope<T>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Scope<T> {
     values: RefCell<HashMap<String, T>>,
     pub parent: Link<T>,
@@ -18,7 +18,7 @@ where
 {
     fn new_globals() -> Globals<T> {
         Some(Rc::new(Self {
-            values: RefCell::new(HashMap::new()),
+            values: RefCell::new(HashMap::default()),
             parent: None,
             globals: None,
         }))
@@ -72,7 +72,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Env<T> {
     current: Link<T>,
     globals: Globals<T>,
@@ -86,6 +86,12 @@ where
         let globals = Scope::new_globals();
         let current = Scope::with_parent(None, globals.as_ref().map(Rc::clone));
         Self { globals, current }
+    }
+
+    pub fn define_global(&mut self, name: &str, val: T) {
+        if let Some(s) = self.globals.as_ref() {
+            s.define(name, val);
+        }
     }
 
     pub fn open_scope(&mut self) {

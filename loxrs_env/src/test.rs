@@ -3,7 +3,7 @@ use crate::Env;
 
 #[test]
 fn basics() {
-    let mut env: Env<String> = Env::new();
+    let mut env: Env<String> = Env::default();
     assert!(env.get("foo").is_err());
 
     env.define("foo", "bar".to_owned());
@@ -18,7 +18,7 @@ fn basics() {
 
 #[test]
 fn stack_blowout() {
-    let mut env: Env<String> = Env::new();
+    let mut env: Env<String> = Env::default();
     for _i in 1..10_000_000 {
         env.open_scope();
     }
@@ -26,7 +26,7 @@ fn stack_blowout() {
 
 #[test]
 fn scope_assignment() {
-    let mut env: Env<String> = Env::new();
+    let mut env: Env<String> = Env::default();
     env.define("foo", "bar".to_owned());
     assert!(env.get("foo").is_ok_and(|str| str == "bar"));
 
@@ -42,4 +42,17 @@ fn scope_assignment() {
 
     env.close_scope();
     assert!(env.get("foo").is_err());
+}
+
+#[test]
+fn scope_shadow() {
+    let mut env: Env<String> = Env::default();
+    env.define_global("foo", "bar".to_owned());
+
+    env.open_scope();
+    env.define("foo", "baz".to_owned());
+    assert!(env.get("foo").is_ok_and(|str| str == "baz"));
+
+    env.close_scope();
+    assert!(env.get("foo").is_ok_and(|str| str == "bar"));
 }

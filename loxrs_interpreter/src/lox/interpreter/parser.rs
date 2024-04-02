@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use log::error;
 
 use loxrs_entities::expr::ExprLogical;
@@ -54,7 +56,7 @@ impl Parser {
 
     fn error(&self, err_token: &Token, message: &str) -> LoxErr {
         LoxErr::Parse {
-            token: err_token.to_string(),
+            token: message.to_string(),
             line: err_token.line.to_string(),
             column: err_token.column.to_string(),
         }
@@ -110,7 +112,9 @@ impl Parser {
 
     fn stmt(&mut self) -> Option<Stmt> {
         let stmt;
-        if self.matches(&[TokenType::Var]).is_some() {
+        if self.matches(&[TokenType::Fun]).is_some() {
+            stmt = self.fun_stmt("function");
+        } else if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
         } else if self.matches(&[TokenType::For]).is_some() {
             stmt = self.for_stmt();
@@ -258,6 +262,19 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(&TokenType::SemiColon, "Expected `;` after expression.")?;
         Ok(Stmt::Expr(StmtExpr { expr }))
+    }
+
+    fn fun_stmt(&mut self, kind: &str) -> Result<Stmt> {
+        let name = self
+            .consume(&TokenType::Identifier, &format!("expected {} name", kind))?
+            .clone();
+
+        self.consume(
+            &TokenType::LeftParen,
+            "Expected `(` after `fun` identifier.",
+        )?;
+        // TODO left off here
+        todo!()
     }
 
     fn var_stmt(&mut self) -> Result<Stmt> {

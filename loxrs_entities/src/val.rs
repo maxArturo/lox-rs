@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt::Result as fmt_result;
 use std::fmt::{Debug, Formatter};
 use std::{fmt::Display, rc::Rc};
@@ -18,10 +19,10 @@ pub enum Literal {
 type FuncDefinition = Rc<dyn Fn(Vec<Value>, Rc<Env<Value>>) -> Result<Value>>;
 #[derive(Clone)]
 pub struct Function {
-    arity: u32,
-    name: String,
-    func: FuncDefinition,
-    env: Rc<Env<Value>>,
+    pub arity: usize,
+    pub name: String,
+    pub func: FuncDefinition,
+    pub env: RefCell<Env<Value>>,
 }
 
 impl PartialEq for Function {
@@ -29,7 +30,7 @@ impl PartialEq for Function {
         self.arity == other.arity
             && self.name == other.name
             && Rc::ptr_eq(&self.func, &other.func)
-            && Rc::ptr_eq(&self.env, &other.env)
+            && RefCell::eq(&self.env, &other.env)
     }
 }
 

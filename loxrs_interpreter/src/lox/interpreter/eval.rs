@@ -1,10 +1,14 @@
+use std::time::SystemTime;
 use std::vec;
+use std::{cell::RefCell, rc::Rc};
 
 use log::debug;
 
+use loxrs_entities::stmt::StmtFun;
 use loxrs_entities::{
     expr::{ExprAssign, ExprGrouping},
     stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
+    val::Function,
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
 
@@ -15,12 +19,22 @@ use super::fns::Callable;
 
 #[derive(Debug)]
 pub struct Interpreter {
-    env: Env<Value>,
+    env: RefCell<Env<Value>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self { env: Env::new() }
+        let env = RefCell::new(Env::default());
+        env.borrow_mut().define_global(
+            "time",
+            Value::Func(Function {
+                arity: 0,
+                name: "time <native>".to_owned(),
+                func: Rc::new(|_args, _env| Ok(Value::String(format!("{:#?}", SystemTime::now())))),
+                env: RefCell::clone(&env),
+            }),
+        );
+        Self { env }
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
@@ -30,7 +44,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn truthy(&mut self, val: &Value) -> Value {
+    fn truthy(&self, val: &Value) -> Value {
         Value::Boolean(match val {
             &Value::Boolean(val) => val,
             Value::Nil => false,
@@ -150,15 +164,16 @@ impl ExprEval<Value> for Interpreter {
         self.eval(&expression.expression)
     }
 
-    fn var(&mut self, expression: &Token) -> Result<Value> {
+    fn var(&self, expression: &Token) -> Result<Value> {
         let str = expression.extract_identifier_str()?;
-        let res = self.env.get(str)?;
+        let res = self.env.borrow().get(str)?;
         Ok(res.clone())
     }
 
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
         let val = self.eval(&expr.expression)?;
         self.env
+            .borrow_mut()
             .assign(token.extract_identifier_str()?, val.clone())?;
         Ok(val)
     }
@@ -191,8 +206,8 @@ impl ExprEval<Value> for Interpreter {
     }
 
     fn call(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<Value> {
-        let callee: Box<dyn Callable> = match self.eval(callee)? {
-            Literal::Func(val) => Box::new(val),
+        let callee: Function = match self.eval(callee)? {
+            Literal::Func(val) => val,
             _ => {
                 return Err(LoxErr::Eval {
                     expr: callee.to_string(),
@@ -201,7 +216,7 @@ impl ExprEval<Value> for Interpreter {
             }
         };
 
-        if callee.arity() != args.len() {
+        if callee.arity != args.len() {
             return Err(LoxErr::Eval {
                 expr: format!("{:?}", args),
                 message: format!("Expected {} args but got {}", callee.arity(), args.len())
@@ -224,6 +239,7 @@ impl StmtExec<()> for Interpreter {
         let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
+            Stmt::Fun(stmt) => self.fun_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
             Stmt::Block(stmt) => self.block_stmt(stmt),
             Stmt::If(stmt) => self.if_stmt(stmt),
@@ -247,19 +263,21 @@ impl StmtExec<()> for Interpreter {
 
     fn var_stmt(&mut self, var: &StmtVar) -> Result<()> {
         let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
-        self.env.define(var.token.extract_identifier_str()?, val);
+        self.env
+            .borrow_mut()
+            .define(var.token.extract_identifier_str()?, val);
         Ok(())
     }
 
     fn block_stmt(&mut self, expr: &StmtBlock) -> Result<()> {
-        self.env.open_scope();
+        self.env.borrow_mut().open_scope();
         debug!("curr env block status: {:?}", self.env);
 
         for stmt in expr.stmts.as_slice() {
             self.exec_stmt(stmt)?;
         }
 
-        self.env.close_scope();
+        self.env.borrow_mut().close_scope();
         Ok(())
     }
 
@@ -283,12 +301,17 @@ impl StmtExec<()> for Interpreter {
         }
         Ok(())
     }
+
+    fn fun_stmt(&mut self, expr: &StmtFun) -> Result<()> {
+        todo!()
+    }
 }
 
 trait StmtExec<T: std::fmt::Debug> {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<T>;
     fn print_stmt(&mut self, expr: &StmtPrint) -> Result<T>;
     fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
+    fn fun_stmt(&mut self, expr: &StmtFun) -> Result<T>;
     fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
     fn block_stmt(&mut self, expr: &StmtBlock) -> Result<T>;
     fn if_stmt(&mut self, stmt: &StmtIf) -> Result<T>;
@@ -314,7 +337,7 @@ trait ExprEval<T> {
     fn unary(&mut self, right: &Expr, operator: &Token) -> Result<T>;
     fn binary(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
     fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
-    fn var(&mut self, expression: &Token) -> Result<T>;
+    fn var(&self, expression: &Token) -> Result<T>;
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
     fn call(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<T>;

@@ -2,6 +2,7 @@ use super::{Expr, Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
+    Fun(StmtFun),
     Expr(StmtExpr),
     Print(StmtPrint),
     Var(StmtVar),
@@ -11,6 +12,13 @@ pub enum Stmt {
 }
 
 type StmtB = Box<Stmt>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StmtFun {
+    pub name: String,
+    pub params: Vec<Token>,
+    pub body: Vec<Stmt>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtExpr {
