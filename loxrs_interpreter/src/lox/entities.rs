@@ -1,4 +1,6 @@
+pub mod eval;
 pub mod expr;
+pub mod func;
 pub mod stmt;
 pub mod token;
 pub mod token_type;

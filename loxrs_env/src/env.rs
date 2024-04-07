@@ -2,7 +2,7 @@ use log::debug;
 use loxrs_types::{LoxErr, Result};
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
-type Link<T> = Option<Box<Scope<T>>>;
+type Link<T> = Option<Rc<RefCell<Scope<T>>>>;
 type Globals<T> = Option<Rc<Scope<T>>>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -25,11 +25,11 @@ where
     }
 
     fn with_parent(parent: Link<T>, globals: Globals<T>) -> Link<T> {
-        Some(Box::new(Self {
+        Some(Rc::new(RefCell::new(Self {
             values: RefCell::new(HashMap::new()),
             parent,
             globals: globals.map(|e| Rc::clone(&e)),
-        }))
+        })))
     }
 
     fn define(&self, name: &str, val: T) {
@@ -43,7 +43,7 @@ where
             return Ok(());
         }
         match &self.parent {
-            Some(parent) => parent.assign(name, val),
+            Some(parent) => parent.as_ref().borrow_mut().assign(name, val),
             None => Err(LoxErr::Undefined {
                 message: format!("attempted to assign to undefined var: {}", name),
             }),
@@ -59,7 +59,7 @@ where
             .or_else(|| {
                 self.parent
                     .as_ref()
-                    .and_then(|parent| parent.get(name).ok())
+                    .and_then(|parent| parent.as_ref().borrow().get(name).ok())
             })
             .or_else(|| {
                 self.globals
@@ -100,14 +100,14 @@ where
     }
 
     pub fn close_scope(&mut self) {
-        if let Some(mut s) = self.current.take() {
-            self.current = s.parent.take();
+        if let Some(s) = self.current.take() {
+            self.current = s.as_ref().borrow_mut().parent.take();
         }
     }
 
     pub fn define(&mut self, name: &str, val: T) {
         if let Some(s) = self.current.as_ref() {
-            s.define(name, val);
+            s.as_ref().borrow_mut().define(name, val);
         }
     }
 
@@ -117,12 +117,12 @@ where
             .ok_or(LoxErr::Internal {
                 message: "Attempted to assign to an unscoped environment".to_string(),
             })
-            .and_then(|s| s.assign(name, val))
+            .and_then(|s| s.as_ref().borrow_mut().assign(name, val))
     }
 
     pub fn get(&self, name: &str) -> Result<T> {
-        match &self.current {
-            Some(current) => current.get(name),
+        match self.current.as_ref() {
+            Some(current) => current.borrow().get(name),
             None => Err(LoxErr::Internal {
                 message: "Attempted to get from an unscoped environment".to_string(),
             }),
@@ -142,8 +142,8 @@ where
 impl<T> Drop for Env<T> {
     fn drop(&mut self) {
         let mut curr = self.current.take();
-        while let Some(mut link) = curr {
-            curr = link.parent.take();
+        while let Some(link) = curr {
+            curr = link.as_ref().borrow_mut().parent.take();
         }
         self.globals.take();
     }

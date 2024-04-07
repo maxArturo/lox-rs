@@ -1,40 +1,44 @@
+use std::cell::RefCell;
 use std::time::SystemTime;
 use std::vec;
-use std::{cell::RefCell, rc::Rc};
 
 use log::debug;
 
-use loxrs_entities::stmt::StmtFun;
-use loxrs_entities::{
+use crate::lox::entities::func::Func;
+
+use super::super::entities::eval::Interpreter;
+use super::super::entities::func::{Function, NativeFunction};
+use super::super::entities::stmt::{StmtFun, StmtReturn};
+use super::super::entities::{
     expr::{ExprAssign, ExprGrouping},
     stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
-    val::Function,
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
 
 use loxrs_env::Env;
 use loxrs_types::{LoxErr, Result};
 
-use super::fns::Callable;
-
-#[derive(Debug)]
-pub struct Interpreter {
-    env: RefCell<Env<Value>>,
-}
-
 impl Interpreter {
     pub fn new() -> Self {
-        let env = RefCell::new(Env::default());
+        Self {
+            env: Self::setup_native_fns(),
+        }
+    }
+
+    fn setup_native_fns() -> RefCell<Env<Value>> {
+        let env: RefCell<Env<Value>> = RefCell::new(Env::default());
+
+        let fn_env = env.clone();
         env.borrow_mut().define_global(
             "time",
-            Value::Func(Function {
-                arity: 0,
-                name: "time <native>".to_owned(),
-                func: Rc::new(|_args, _env| Ok(Value::String(format!("{:#?}", SystemTime::now())))),
-                env: RefCell::clone(&env),
-            }),
+            Value::Func(Func::Native(NativeFunction::new(
+                |_args, _env| Ok(Value::String(format!("{:#?}", SystemTime::now()))),
+                fn_env,
+                &[],
+                "time",
+            ))),
         );
-        Self { env }
+        env
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
@@ -42,6 +46,12 @@ impl Interpreter {
             self.exec_stmt(s)?;
         }
         Ok(())
+    }
+
+    pub fn env(&self) -> RefCell<Env<Value>> {
+        let env = self.env.clone();
+        env.borrow_mut().open_scope();
+        env
     }
 
     fn truthy(&self, val: &Value) -> Value {
@@ -66,7 +76,22 @@ impl Interpreter {
     }
 }
 
-impl ExprEval<Value> for Interpreter {
+impl Interpreter {
+    fn eval(&mut self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
+            Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
+            Expr::Logical(logical) => {
+                self.logical(&logical.left, &logical.right, &logical.operator)
+            }
+            Expr::Grouping(grouping) => self.grouping(grouping),
+            Expr::Literal(lit) => self.literal(lit),
+            Expr::Var(var) => self.var(var),
+            Expr::Assign(token, expr) => self.assign(token, expr),
+            Expr::Call(call) => self.call(&call.callee, &call.args),
+        }
+    }
+
     fn literal(&mut self, literal: &Literal) -> Result<Value> {
         Ok(literal.clone())
     }
@@ -205,8 +230,8 @@ impl ExprEval<Value> for Interpreter {
         }
     }
 
-    fn call(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<Value> {
-        let callee: Function = match self.eval(callee)? {
+    fn call(&mut self, callee: &Expr, args: &[Expr]) -> Result<Value> {
+        let mut fun = match self.eval(callee)? {
             Literal::Func(val) => val,
             _ => {
                 return Err(LoxErr::Eval {
@@ -216,10 +241,10 @@ impl ExprEval<Value> for Interpreter {
             }
         };
 
-        if callee.arity != args.len() {
+        if fun.arity() != args.len() {
             return Err(LoxErr::Eval {
                 expr: format!("{:?}", args),
-                message: format!("Expected {} args but got {}", callee.arity(), args.len())
+                message: format!("Expected {} args but got {}", fun.arity(), args.len())
                     .to_string(),
             });
         }
@@ -230,18 +255,19 @@ impl ExprEval<Value> for Interpreter {
             args_eval.push(self.eval(arg)?);
         }
 
-        callee.call(self, &args_eval)
+        fun.call(self, args_eval)
     }
 }
 
-impl StmtExec<()> for Interpreter {
-    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<()> {
+impl Interpreter {
+    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Return(stmt) => self.return_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
-            Stmt::Block(stmt) => self.block_stmt(stmt),
+            Stmt::Block(stmt) => self.block_stmt(stmt, self.env()),
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
@@ -249,39 +275,62 @@ impl StmtExec<()> for Interpreter {
         res
     }
 
-    fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<()> {
+    fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<Option<Value>> {
         let val = self.eval(&stmt.expr)?;
         debug!("the returned value is: {val}");
         println!("==> {}", val);
-        Ok(())
+        Ok(None)
     }
 
-    fn eval_stmt(&mut self, stmt: &StmtExpr) -> Result<()> {
-        self.eval(&stmt.expr)?;
-        Ok(())
+    fn eval_stmt(&mut self, stmt: &StmtExpr) -> Result<Option<Value>> {
+        self.eval(&stmt.expr).map(Some)
     }
 
-    fn var_stmt(&mut self, var: &StmtVar) -> Result<()> {
+    fn return_stmt(&mut self, stmt: &StmtReturn) -> Result<Option<Value>> {
+        self.eval(&stmt.val).map(Some)
+    }
+
+    fn var_stmt(&mut self, var: &StmtVar) -> Result<Option<Value>> {
         let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
         self.env
             .borrow_mut()
             .define(var.token.extract_identifier_str()?, val);
-        Ok(())
+        Ok(None)
     }
 
-    fn block_stmt(&mut self, expr: &StmtBlock) -> Result<()> {
-        self.env.borrow_mut().open_scope();
-        debug!("curr env block status: {:?}", self.env);
+    fn fun_stmt(&mut self, def: &StmtFun) -> Result<Option<Value>> {
+        self.env.borrow_mut().define(
+            def.name.extract_identifier_str()?,
+            Value::Func(Func::Lox(Function {
+                def: Box::new(def.clone()),
+                env: self.env(),
+            })),
+        );
 
-        for stmt in expr.stmts.as_slice() {
+        Ok(None)
+    }
+
+    pub fn block_stmt(
+        &mut self,
+        block: &StmtBlock,
+        env: RefCell<Env<Value>>,
+    ) -> Result<Option<Value>> {
+        let prev_env = RefCell::clone(&self.env);
+        self.env = env;
+
+        debug!("curr env block status: {:?}", self.env);
+        for stmt in block.stmts.as_slice() {
+            if let Stmt::Return(s) = stmt {
+                return self.return_stmt(s);
+            }
             self.exec_stmt(stmt)?;
         }
 
-        self.env.borrow_mut().close_scope();
-        Ok(())
+        self.env = prev_env;
+        Ok(None)
     }
 
-    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<()> {
+    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<Option<Value>> {
         let res = self.eval(&stmt.cond)?;
         if let Literal::Boolean(true) = self.truthy(&res) {
             return self.exec_stmt(&stmt.then);
@@ -289,56 +338,19 @@ impl StmtExec<()> for Interpreter {
         if let Some(other) = &stmt.else_stmt {
             return self.exec_stmt(other);
         }
-        Ok(())
+        Ok(None)
     }
 
-    fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<()> {
+    fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<Option<Value>> {
         let mut res = self.eval(&stmt.expr)?;
 
         while let Literal::Boolean(true) = self.truthy(&res) {
+            if let Stmt::Return(s) = stmt.stmt.as_ref() {
+                return self.return_stmt(s);
+            }
             self.exec_stmt(&stmt.stmt)?;
             res = self.eval(&stmt.expr)?;
         }
-        Ok(())
+        Ok(None)
     }
-
-    fn fun_stmt(&mut self, expr: &StmtFun) -> Result<()> {
-        todo!()
-    }
-}
-
-trait StmtExec<T: std::fmt::Debug> {
-    fn exec_stmt(&mut self, stmt: &Stmt) -> Result<T>;
-    fn print_stmt(&mut self, expr: &StmtPrint) -> Result<T>;
-    fn eval_stmt(&mut self, expr: &StmtExpr) -> Result<T>;
-    fn fun_stmt(&mut self, expr: &StmtFun) -> Result<T>;
-    fn var_stmt(&mut self, token: &StmtVar) -> Result<T>;
-    fn block_stmt(&mut self, expr: &StmtBlock) -> Result<T>;
-    fn if_stmt(&mut self, stmt: &StmtIf) -> Result<T>;
-    fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<T>;
-}
-
-trait ExprEval<T> {
-    fn eval(&mut self, expr: &Expr) -> Result<T> {
-        match expr {
-            Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
-            Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
-            Expr::Logical(logical) => {
-                self.logical(&logical.left, &logical.right, &logical.operator)
-            }
-            Expr::Grouping(grouping) => self.grouping(grouping),
-            Expr::Literal(lit) => self.literal(lit),
-            Expr::Var(var) => self.var(var),
-            Expr::Assign(token, expr) => self.assign(token, expr),
-            Expr::Call(call) => self.call(&call.callee, &call.paren, &call.args),
-        }
-    }
-    fn literal(&mut self, literal: &Literal) -> Result<T>;
-    fn unary(&mut self, right: &Expr, operator: &Token) -> Result<T>;
-    fn binary(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
-    fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
-    fn var(&self, expression: &Token) -> Result<T>;
-    fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
-    fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
-    fn call(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<T>;
 }

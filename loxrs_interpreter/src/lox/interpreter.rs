@@ -1,5 +1,5 @@
 mod eval;
-mod fns;
+mod func;
 mod input;
 mod parser;
 mod reader;

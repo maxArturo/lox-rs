@@ -1,14 +1,14 @@
-use std::fmt::format;
-
 use log::error;
 
-use loxrs_entities::expr::ExprLogical;
-
-use loxrs_entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
-use loxrs_entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
-use loxrs_entities::{Expr, Literal, Stmt, Token, TokenType};
+use crate::lox::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
+use crate::lox::entities::stmt::{
+    StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
+};
+use crate::lox::entities::{Expr, Literal, Stmt, Token, TokenType, Value};
 
 use loxrs_types::{LoxErr, Result};
+
+use crate::lox::entities::expr::ExprLogical;
 
 const MAX_ARGS_LEN: usize = 255;
 
@@ -122,6 +122,8 @@ impl Parser {
             stmt = self.if_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
             stmt = self.print_stmt();
+        } else if self.matches(&[TokenType::Return]).is_some() {
+            stmt = self.return_stmt();
         } else if self.matches(&[TokenType::While]).is_some() {
             stmt = self.while_stmt();
         } else if self.matches(&[TokenType::LeftBrace]).is_some() {
@@ -245,6 +247,21 @@ impl Parser {
         Ok(Stmt::Print(StmtPrint { expr }))
     }
 
+    fn return_stmt(&mut self) -> Result<Stmt> {
+        let keyword = self.previous().clone();
+        let mut val = Expr::Literal(Box::new(Value::Nil));
+
+        if !self.check(&TokenType::SemiColon) {
+            val = self.expression()?;
+        }
+
+        self.consume(
+            &TokenType::SemiColon,
+            "Expected `;` after return statement.",
+        )?;
+        Ok(Stmt::Return(StmtReturn { keyword, val }))
+    }
+
     fn block_stmt(&mut self) -> Result<Stmt> {
         let mut stmts: Vec<Stmt> = Vec::new();
 
@@ -273,8 +290,54 @@ impl Parser {
             &TokenType::LeftParen,
             "Expected `(` after `fun` identifier.",
         )?;
-        // TODO left off here
-        todo!()
+
+        let mut params = vec![];
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if params.len() >= MAX_ARGS_LEN {
+                    // we throw the error here nonetheless
+                    let token = self.peek();
+
+                    return Err(LoxErr::Parse {
+                        token: format!(
+                            "No more than {} params are allowed for {}",
+                            MAX_ARGS_LEN, token
+                        ),
+                        line: token.line.to_string(),
+                        column: token.column.to_string(),
+                    });
+                }
+                params.push(
+                    self.consume(&TokenType::Identifier, "expected parameer name")?
+                        .clone(),
+                );
+
+                if self.matches(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+        self.consume(&TokenType::RightParen, "Expected `)` after params list")?;
+        let token = self
+            .consume(
+                &TokenType::LeftBrace,
+                &format!("Expected `{{` before {} body", kind),
+            )?
+            .clone();
+
+        match self.block_stmt() {
+            Err(e) => Err(e),
+            Ok(Stmt::Block(block)) => Ok(Stmt::Fun(StmtFun {
+                name,
+                params,
+                body: block,
+            })),
+            _ => Err(LoxErr::Parse {
+                token: format!("invalid statement in {} declaration", kind),
+                line: token.line.to_string(),
+                column: token.column.to_string(),
+            }),
+        }
     }
 
     fn var_stmt(&mut self) -> Result<Stmt> {
