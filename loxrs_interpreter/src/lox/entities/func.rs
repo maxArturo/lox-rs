@@ -1,11 +1,12 @@
 use super::eval::Interpreter;
 use super::stmt::StmtFun;
-use super::Value;
+use super::{Token, Value};
 use loxrs_env::Env;
 use loxrs_types::Result;
 use std::cell::RefCell;
 use std::fmt::Result as fmt_result;
 use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Func {
@@ -13,17 +14,18 @@ pub enum Func {
     Native(NativeFunction),
 }
 
-pub type FuncDefinition = fn(&mut Interpreter, RefCell<Env<Value>>) -> Result<Value>;
+pub type FuncDefinition = fn(&mut Interpreter, Rc<RefCell<Env<Value>>>) -> Result<Value>;
 
 #[derive(Clone)]
 pub struct Function {
     pub def: Box<StmtFun>,
-    pub env: RefCell<Env<Value>>,
+    pub env: Rc<RefCell<Env<Value>>>,
+    pub params: Vec<Token>,
 }
 
 impl Function {
     pub fn arity(&self) -> usize {
-        self.def.body.stmts.len()
+        self.params.len()
     }
 
     pub fn name(&self) -> &str {
@@ -51,7 +53,7 @@ impl Debug for Function {
 #[derive(Clone)]
 pub struct NativeFunction {
     pub def: FuncDefinition,
-    pub env: RefCell<Env<Value>>,
+    pub env: Rc<RefCell<Env<Value>>>,
     pub params: Vec<String>,
     pub name: String,
 }
@@ -59,7 +61,7 @@ pub struct NativeFunction {
 impl NativeFunction {
     pub fn new(
         def: FuncDefinition,
-        env: RefCell<Env<Value>>,
+        env: Rc<RefCell<Env<Value>>>,
         params: &[String],
         name: &str,
     ) -> Self {

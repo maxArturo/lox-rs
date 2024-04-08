@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::SystemTime;
 use std::vec;
 
@@ -25,15 +26,14 @@ impl Interpreter {
         }
     }
 
-    fn setup_native_fns() -> RefCell<Env<Value>> {
-        let env: RefCell<Env<Value>> = RefCell::new(Env::default());
+    fn setup_native_fns() -> Rc<RefCell<Env<Value>>> {
+        let env = Rc::new(RefCell::new(Env::default()));
 
-        let fn_env = env.clone();
         env.borrow_mut().define_global(
             "time",
             Value::Func(Func::Native(NativeFunction::new(
                 |_args, _env| Ok(Value::String(format!("{:#?}", SystemTime::now()))),
-                fn_env,
+                Rc::clone(&env),
                 &[],
                 "time",
             ))),
@@ -48,10 +48,8 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn env(&self) -> RefCell<Env<Value>> {
-        let env = self.env.clone();
-        env.borrow_mut().open_scope();
-        env
+    pub fn env(&self) -> Rc<RefCell<Env<Value>>> {
+        Rc::clone(&self.env)
     }
 
     fn truthy(&self, val: &Value) -> Value {
@@ -304,6 +302,7 @@ impl Interpreter {
             Value::Func(Func::Lox(Function {
                 def: Box::new(def.clone()),
                 env: self.env(),
+                params: def.params.clone(),
             })),
         );
 
@@ -313,10 +312,11 @@ impl Interpreter {
     pub fn block_stmt(
         &mut self,
         block: &StmtBlock,
-        env: RefCell<Env<Value>>,
+        env: Rc<RefCell<Env<Value>>>,
     ) -> Result<Option<Value>> {
-        let prev_env = RefCell::clone(&self.env);
+        let prev_env = Rc::clone(&self.env);
         self.env = env;
+        self.env.borrow_mut().open_scope();
 
         debug!("curr env block status: {:?}", self.env);
         for stmt in block.stmts.as_slice() {
