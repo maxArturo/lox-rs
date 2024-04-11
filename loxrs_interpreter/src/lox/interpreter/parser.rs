@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, trace};
 
 use crate::lox::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
 use crate::lox::entities::stmt::{
@@ -522,6 +522,7 @@ impl Parser {
                     });
                 }
                 args.push(self.expression()?);
+                trace!("call args so far: {:?}", args);
                 if self.matches(&[TokenType::Comma]).is_none() {
                     break;
                 }

@@ -1,21 +1,53 @@
-use log::debug;
+use core::fmt::{self, Display};
+use log::trace;
 use loxrs_types::{LoxErr, Result};
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
+use std::borrow::Borrow;
+use std::fmt::Result as fmt_result;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    rc::Rc,
+};
 
 type Link<T> = Option<Rc<RefCell<Scope<T>>>>;
 type Globals<T> = Option<Rc<Scope<T>>>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct Scope<T> {
     values: RefCell<HashMap<String, T>>,
     pub parent: Link<T>,
     pub globals: Globals<T>,
 }
 
-impl<T> Scope<T>
-where
-    T: Debug + Clone,
-{
+impl<T: Display> Scope<T> {
+    fn format_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        for _ in 0..(indent) {
+            write!(f, "  ")?;
+        }
+        writeln!(f, "Scope: {{")?;
+
+        for _ in 0..(indent) {
+            write!(f, "  ")?;
+        }
+        for (key, value) in self.values.borrow().iter() {
+            writeln!(f, "[{}: {}] ", key, value)?;
+        }
+
+        if let Some(p) = &self.parent {
+            writeln!(f)?;
+            for _ in 0..(indent + 1) {
+                write!(f, "  ")?;
+            }
+            p.as_ref().borrow().format_with_indent(f, indent + 1)?;
+        }
+
+        writeln!(f, "}}")?;
+        Ok(())
+    }
+}
+
+impl<T: Display + Clone> Scope<T> {
     fn new_globals() -> Globals<T> {
         Some(Rc::new(Self {
             values: RefCell::new(HashMap::default()),
@@ -37,7 +69,12 @@ where
     }
 
     fn assign(&self, name: &str, val: T) -> Result<()> {
-        debug!("[assign] curr values: {:?}", self);
+        trace!("[assign] current env: {}", self);
+        trace!(
+            "[assign] adding to current env: name=[{}], value=[{}]",
+            name,
+            val
+        );
         if self.values.borrow().contains_key(name) {
             self.values.borrow_mut().insert(name.to_string(), val);
             return Ok(());
@@ -51,20 +88,22 @@ where
     }
 
     fn get(&self, name: &str) -> Result<T> {
-        debug!("[get] curr values: {:?}", self);
+        trace!("[get] curr values: {}", self);
         self.values
             .borrow()
             .get(name)
             .cloned()
             .or_else(|| {
+                trace!("[get] going into parent...");
                 self.parent
                     .as_ref()
                     .and_then(|parent| parent.as_ref().borrow().get(name).ok())
             })
             .or_else(|| {
+                trace!("[get] going into globals...");
                 self.globals
                     .as_ref()
-                    .and_then(|parent| parent.get(name).ok())
+                    .and_then(|globals| globals.get(name).ok())
             })
             .ok_or(LoxErr::Undefined {
                 message: format!("variable undefined: {}", name),
@@ -78,10 +117,13 @@ pub struct Env<T> {
     globals: Globals<T>,
 }
 
-impl<T> Env<T>
-where
-    T: Debug + Clone,
-{
+// impl<T: Clone> Clone for Env<T> {
+//     fn clone(&self) -> Self {
+//         Self { current: self.current.clone(), globals: self.globals.clone() }
+//     }
+// }
+
+impl<T: Display + Clone> Env<T> {
     pub fn new() -> Self {
         let globals = Scope::new_globals();
         let current = Scope::with_parent(None, globals.as_ref().map(Rc::clone));
@@ -121,8 +163,12 @@ where
     }
 
     pub fn get(&self, name: &str) -> Result<T> {
-        match self.current.as_ref() {
-            Some(current) => current.borrow().get(name),
+        let borrow = self.current.as_ref();
+        match borrow {
+            Some(current) => {
+                let borrow: core::cell::Ref<'_, Scope<T>> = current.as_ref().borrow();
+                borrow.get(name)
+            }
             None => Err(LoxErr::Internal {
                 message: "Attempted to get from an unscoped environment".to_string(),
             }),
@@ -130,7 +176,7 @@ where
     }
 }
 
-impl<T> Default for Env<T>
+impl<T: Display> Default for Env<T>
 where
     T: Debug + Clone,
 {
@@ -146,5 +192,24 @@ impl<T> Drop for Env<T> {
             curr = link.as_ref().borrow_mut().parent.take();
         }
         self.globals.take();
+    }
+}
+
+impl<T: Display> Display for Env<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt_result {
+        match self.current.as_ref() {
+            Some(current) => {
+                let borrow: core::cell::Ref<'_, Scope<T>> = current.as_ref().borrow();
+                write!(f, "Env: {}", borrow.borrow())?;
+                Ok(())
+            }
+            None => Ok(()),
+        }
+    }
+}
+
+impl<T: Display> Display for Scope<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.format_with_indent(f, 0)
     }
 }

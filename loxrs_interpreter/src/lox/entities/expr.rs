@@ -70,7 +70,7 @@ impl fmt::Display for Expr {
             "{}",
             match self {
                 Self::Call(call) => {
-                    parenthesize("call", call.args.iter().collect())
+                    parenthesize(&call.callee.to_string(), call.args.iter().collect())
                 }
                 Self::Grouping(grouping) => {
                     parenthesize("grouping", vec![&grouping.expression])

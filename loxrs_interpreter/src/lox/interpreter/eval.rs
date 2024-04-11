@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::SystemTime;
+use std::time::Instant;
 use std::vec;
 
-use log::debug;
+use log::{debug, trace};
 
 use crate::lox::entities::func::Func;
 
@@ -32,7 +32,7 @@ impl Interpreter {
         env.borrow_mut().define_global(
             "time",
             Value::Func(Func::Native(NativeFunction::new(
-                |_args, _env| Ok(Value::String(format!("{:#?}", SystemTime::now()))),
+                |_args, _env| Ok(Value::String(format!("{:?}", Instant::now()))),
                 Rc::clone(&env),
                 &[],
                 "time",
@@ -42,6 +42,7 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
+        trace!("set of statements: {:?}", stmts);
         for s in stmts {
             self.exec_stmt(s)?;
         }
@@ -269,7 +270,7 @@ impl Interpreter {
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
-        debug!("statement execution result: {:?}", res);
+        debug!("statement execution result for {}: {:?}", stmt, res);
         res
     }
 
@@ -281,14 +282,18 @@ impl Interpreter {
     }
 
     fn eval_stmt(&mut self, stmt: &StmtExpr) -> Result<Option<Value>> {
+        trace!("eval statement: {:?}", stmt);
         self.eval(&stmt.expr).map(Some)
     }
 
     fn return_stmt(&mut self, stmt: &StmtReturn) -> Result<Option<Value>> {
-        self.eval(&stmt.val).map(Some)
+        let res = self.eval(&stmt.val).map(Some);
+        trace!("returning from statement with value: {:?}", res);
+        res
     }
 
     fn var_stmt(&mut self, var: &StmtVar) -> Result<Option<Value>> {
+        trace!("var statement: {:?}", var);
         let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
         self.env
             .borrow_mut()
@@ -297,13 +302,25 @@ impl Interpreter {
     }
 
     fn fun_stmt(&mut self, def: &StmtFun) -> Result<Option<Value>> {
-        self.env.borrow_mut().define(
-            def.name.extract_identifier_str()?,
-            Value::Func(Func::Lox(Function {
-                def: Box::new(def.clone()),
-                env: self.env(),
-                params: def.params.clone(),
-            })),
+        trace!("fun statement: {:?}", def);
+        let env = self.env();
+        let display = self.env();
+
+        let func = Value::Func(Func::Lox(Function {
+            def: Box::new(def.clone()),
+            env,
+            params: def.params.clone(),
+        }));
+
+        // TODO lotsa hack here remove
+        self.env
+            .borrow_mut()
+            .define(def.name.extract_identifier_str()?, func.clone());
+
+        trace!(
+            "assigning the following env to {}: {}",
+            &func,
+            display.borrow()
         );
 
         Ok(None)
@@ -318,36 +335,40 @@ impl Interpreter {
         self.env = env;
         self.env.borrow_mut().open_scope();
 
-        debug!("curr env block status: {:?}", self.env);
+        let mut res = Ok(None);
+
+        trace!("block statement: {:?}", block);
         for stmt in block.stmts.as_slice() {
-            if let Stmt::Return(s) = stmt {
-                return self.return_stmt(s);
+            if let Some(val) = self.exec_stmt(stmt)? {
+                res = Ok(Some(val));
+                break;
             }
-            self.exec_stmt(stmt)?;
         }
 
+        self.env.borrow_mut().close_scope();
         self.env = prev_env;
-        Ok(None)
+        res
     }
 
     fn if_stmt(&mut self, stmt: &StmtIf) -> Result<Option<Value>> {
         let res = self.eval(&stmt.cond)?;
         if let Literal::Boolean(true) = self.truthy(&res) {
+            trace!("entering `then` side of if: {:?}", stmt.then);
             return self.exec_stmt(&stmt.then);
         }
+
         if let Some(other) = &stmt.else_stmt {
+            trace!("entering `else` side of if: {:?}", stmt.else_stmt);
             return self.exec_stmt(other);
         }
         Ok(None)
     }
 
     fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<Option<Value>> {
+        trace!("while statement: {:?}", stmt);
         let mut res = self.eval(&stmt.expr)?;
 
         while let Literal::Boolean(true) = self.truthy(&res) {
-            if let Stmt::Return(s) = stmt.stmt.as_ref() {
-                return self.return_stmt(s);
-            }
             self.exec_stmt(&stmt.stmt)?;
             res = self.eval(&stmt.expr)?;
         }

@@ -61,17 +61,32 @@ fn scope_shadow() {
 fn clone_env() {
     let mut env: Env<String> = Env::default();
     env.define("foo", "baz".to_owned());
+    env.open_scope();
 
     assert!(env.get("foo").is_ok_and(|str| str == "baz"));
     {
         let mut cloned = env.clone();
 
+        assert!(cloned.get("foo").is_ok());
+        env.close_scope();
+
+        assert!(cloned.get("foo").is_ok());
+        assert!(env.get("foo").is_ok());
+
         cloned.open_scope();
+
+        assert!(env.get("foo").is_ok());
+
         cloned.define("bee", "boo".to_owned());
 
-        assert!(cloned.assign("foo", "bar".to_owned()).is_ok());
+        if let Err(err) = cloned.assign("foo", "bar".to_owned()) {
+            panic!("{}", err);
+        }
+
         assert!(cloned.get("bee").is_ok_and(|str| str == "boo"));
         cloned.close_scope();
+
+        assert!(cloned.get("bee").is_err());
     }
 
     assert!(env.get("bee").is_err());

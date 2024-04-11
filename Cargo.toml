@@ -1,1 +1,4 @@
-workspace = { members = [ "loxrs_env", "loxrs_interpreter", "loxrs_types"] }
+[workspace]
+members = [ "loxrs_env", "loxrs_interpreter", "loxrs_types"]
+resolver = "2"
+
