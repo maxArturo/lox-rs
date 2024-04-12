@@ -1,9 +1,8 @@
 use super::eval::Interpreter;
 use super::stmt::StmtFun;
 use super::{Token, Value};
-use loxrs_env::Env;
+use loxrs_env::Scope;
 use loxrs_types::Result;
-use std::cell::RefCell;
 use std::fmt::Result as fmt_result;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
@@ -14,12 +13,12 @@ pub enum Func {
     Native(NativeFunction),
 }
 
-pub type FuncDefinition = fn(&mut Interpreter, Rc<RefCell<Env<Value>>>) -> Result<Value>;
+pub type FuncDefinition = fn(&mut Interpreter, Rc<Scope<Value>>) -> Result<Value>;
 
 #[derive(Clone)]
 pub struct Function {
     pub def: Box<StmtFun>,
-    pub env: Rc<RefCell<Env<Value>>>,
+    pub scope: Rc<Scope<Value>>,
     pub params: Vec<Token>,
 }
 
@@ -35,7 +34,7 @@ impl Function {
 
 impl PartialEq for Function {
     fn eq(&self, other: &Self) -> bool {
-        std::cmp::PartialEq::eq(&self.def, &other.def) && RefCell::eq(&self.env, &other.env)
+        std::cmp::PartialEq::eq(&self.def, &other.def) && Rc::eq(&self.scope, &other.scope)
     }
 }
 
@@ -53,7 +52,7 @@ impl Debug for Function {
 #[derive(Clone)]
 pub struct NativeFunction {
     pub def: FuncDefinition,
-    pub env: Rc<RefCell<Env<Value>>>,
+    pub scope: Rc<Scope<Value>>,
     pub params: Vec<String>,
     pub name: String,
 }
@@ -61,12 +60,12 @@ pub struct NativeFunction {
 impl NativeFunction {
     pub fn new(
         def: FuncDefinition,
-        env: Rc<RefCell<Env<Value>>>,
+        scope: Rc<Scope<Value>>,
         params: &[String],
         name: &str,
     ) -> Self {
         Self {
-            env,
+            scope,
             name: name.to_owned(),
             def,
             params: params.to_owned().clone(),
@@ -85,7 +84,7 @@ impl NativeFunction {
 impl PartialEq for NativeFunction {
     fn eq(&self, other: &Self) -> bool {
         std::cmp::PartialEq::eq(&self.def, &other.def)
-            && RefCell::eq(&self.env, &other.env)
+            && Rc::eq(&self.scope, &other.scope)
             && Vec::eq(&self.params, &other.params)
             && self.name == other.name
     }

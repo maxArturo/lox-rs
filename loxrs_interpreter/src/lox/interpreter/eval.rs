@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 use std::vec;
@@ -16,29 +15,29 @@ use super::super::entities::{
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
 
-use loxrs_env::Env;
+use loxrs_env::Scope;
 use loxrs_types::{LoxErr, Result};
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            env: Self::setup_native_fns(),
+            scope: Self::setup_native_fns(),
         }
     }
 
-    fn setup_native_fns() -> Rc<RefCell<Env<Value>>> {
-        let env = Rc::new(RefCell::new(Env::default()));
+    fn setup_native_fns() -> Rc<Scope<Value>> {
+        let scope = Rc::new(Scope::new());
 
-        env.borrow_mut().define_global(
+        scope.define_global(
             "time",
             Value::Func(Func::Native(NativeFunction::new(
                 |_args, _env| Ok(Value::String(format!("{:?}", Instant::now()))),
-                Rc::clone(&env),
+                Rc::clone(&scope),
                 &[],
                 "time",
             ))),
         );
-        env
+        scope
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
@@ -49,8 +48,8 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn env(&self) -> Rc<RefCell<Env<Value>>> {
-        Rc::clone(&self.env)
+    pub fn scope(&self) -> Rc<Scope<Value>> {
+        Rc::clone(&self.scope)
     }
 
     fn truthy(&self, val: &Value) -> Value {
@@ -190,14 +189,13 @@ impl Interpreter {
 
     fn var(&self, expression: &Token) -> Result<Value> {
         let str = expression.extract_identifier_str()?;
-        let res = self.env.borrow().get(str)?;
+        let res = self.scope.get(str)?;
         Ok(res.clone())
     }
 
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
         let val = self.eval(&expr.expression)?;
-        self.env
-            .borrow_mut()
+        self.scope
             .assign(token.extract_identifier_str()?, val.clone())?;
         Ok(val)
     }
@@ -266,7 +264,7 @@ impl Interpreter {
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
-            Stmt::Block(stmt) => self.block_stmt(stmt, self.env()),
+            Stmt::Block(stmt) => self.block_stmt(stmt, self.scope()),
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
@@ -283,7 +281,8 @@ impl Interpreter {
 
     fn eval_stmt(&mut self, stmt: &StmtExpr) -> Result<Option<Value>> {
         trace!("eval statement: {:?}", stmt);
-        self.eval(&stmt.expr).map(Some)
+        self.eval(&stmt.expr)?;
+        Ok(None)
     }
 
     fn return_stmt(&mut self, stmt: &StmtReturn) -> Result<Option<Value>> {
@@ -295,33 +294,22 @@ impl Interpreter {
     fn var_stmt(&mut self, var: &StmtVar) -> Result<Option<Value>> {
         trace!("var statement: {:?}", var);
         let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
-        self.env
-            .borrow_mut()
-            .define(var.token.extract_identifier_str()?, val);
+        self.scope.define(var.token.extract_identifier_str()?, val);
         Ok(None)
     }
 
     fn fun_stmt(&mut self, def: &StmtFun) -> Result<Option<Value>> {
-        trace!("fun statement: {:?}", def);
-        let env = self.env();
-        let display = self.env();
+        let scope = self.scope();
+        trace!("assigning the following env to {:?}: {}", def, scope);
 
         let func = Value::Func(Func::Lox(Function {
             def: Box::new(def.clone()),
-            env,
+            scope,
             params: def.params.clone(),
         }));
 
-        // TODO lotsa hack here remove
-        self.env
-            .borrow_mut()
+        self.scope
             .define(def.name.extract_identifier_str()?, func.clone());
-
-        trace!(
-            "assigning the following env to {}: {}",
-            &func,
-            display.borrow()
-        );
 
         Ok(None)
     }
@@ -329,11 +317,10 @@ impl Interpreter {
     pub fn block_stmt(
         &mut self,
         block: &StmtBlock,
-        env: Rc<RefCell<Env<Value>>>,
+        scope: Rc<Scope<Value>>,
     ) -> Result<Option<Value>> {
-        let prev_env = Rc::clone(&self.env);
-        self.env = env;
-        self.env.borrow_mut().open_scope();
+        let prev_scope = Rc::clone(&self.scope);
+        self.scope = scope;
 
         let mut res = Ok(None);
 
@@ -345,8 +332,7 @@ impl Interpreter {
             }
         }
 
-        self.env.borrow_mut().close_scope();
-        self.env = prev_env;
+        self.scope = prev_scope;
         res
     }
 

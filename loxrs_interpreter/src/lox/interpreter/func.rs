@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use log::trace;
+use loxrs_env::Scope;
 use loxrs_types::Result;
 
 use crate::lox::entities::{eval::Interpreter, func::Func, Value};
@@ -9,8 +10,7 @@ impl Func {
     pub fn call(&mut self, interpreter: &mut Interpreter, args: Vec<Value>) -> Result<Value> {
         match self {
             Func::Lox(e) => {
-                let env = Rc::clone(&e.env);
-                env.borrow_mut().open_scope();
+                let scope = Scope::from_parent(Rc::clone(&e.scope));
 
                 for (name, val) in e.def.as_ref().params.iter().zip(args.iter()) {
                     trace!(
@@ -18,34 +18,27 @@ impl Func {
                         name,
                         val
                     );
-                    env.borrow_mut()
-                        .define(name.extract_identifier_str().unwrap(), val.clone());
+                    scope.define(name.extract_identifier_str().unwrap(), val.clone());
                 }
                 trace!(
                     "ABOUT TO execute function: <{}>  block call: with env: {}",
                     e.name(),
-                    env.borrow()
+                    scope,
                 );
-                let res = interpreter
-                    .block_stmt(&e.def.body, Rc::clone(&env))
+                interpreter
+                    .block_stmt(&e.def.body, scope)
                     .map(|el| match el {
                         Some(val) => val,
                         None => Value::Nil,
-                    });
-
-                env.borrow_mut().close_scope();
-                res
+                    })
             }
             Func::Native(e) => {
-                let env = Rc::clone(&e.env);
-                env.borrow_mut().open_scope();
+                let scope = Scope::from_parent(Rc::clone(&e.scope));
                 for (name, val) in e.params.iter().zip(args.iter()) {
-                    env.borrow_mut().define(name, val.clone());
+                    scope.define(name, val.clone());
                 }
 
-                let res = (e.def)(interpreter, Rc::clone(&env));
-                env.borrow_mut().close_scope();
-                res
+                (e.def)(interpreter, scope)
             }
         }
     }

@@ -13,3 +13,18 @@ print "so far so good";
 counter(); // "1".
 counter(); // "2".
 
+// another example
+
+fun scope(a) {
+  print "inside `scope`, before assignment this is a: " + a;
+  var a = "local";
+// here we expect a shadow occurrence
+  print "inside `scope`, this is a: " + a;
+}
+
+var a = "something";
+print "this is a: " + a;
+print scope("else");
+// here we want the original to be reinstated
+print "this is a now: " + a;
+
