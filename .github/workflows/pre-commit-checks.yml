@@ -1,10 +1,10 @@
-name: Formatting and linting
+name: Formatting and tests
 
 on: 
   push
 
 jobs:
-  check-formatting:
+  check-formatting-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -13,3 +13,5 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Run rustfmt
         run: cargo fmt -- --check
+      - name: Run tests
+        run: cargo test -p loxrs_env
