@@ -1,11 +1,16 @@
-use log::error;
+use log::{error, trace};
 
-use crate::lox::interpreter::entities::expr::ExprLogical;
+use crate::lox::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
+use crate::lox::entities::stmt::{
+    StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
+};
+use crate::lox::entities::{Expr, Literal, Stmt, Token, TokenType, Value};
 
-use super::entities::expr::{ExprAssign, ExprBinary, ExprGrouping, ExprUnary};
-use super::entities::stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile};
-use super::entities::{Expr, Literal, Stmt, Token, TokenType};
-use super::error::{LoxErr, Result};
+use loxrs_types::{LoxErr, Result};
+
+use crate::lox::entities::expr::ExprLogical;
+
+const MAX_ARGS_LEN: usize = 255;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -51,8 +56,9 @@ impl Parser {
 
     fn error(&self, err_token: &Token, message: &str) -> LoxErr {
         LoxErr::Parse {
-            token: err_token.clone(),
-            message: message.to_string(),
+            token: message.to_string(),
+            line: err_token.line.to_string(),
+            column: err_token.column.to_string(),
         }
     }
 
@@ -106,7 +112,9 @@ impl Parser {
 
     fn stmt(&mut self) -> Option<Stmt> {
         let stmt;
-        if self.matches(&[TokenType::Var]).is_some() {
+        if self.matches(&[TokenType::Fun]).is_some() {
+            stmt = self.fun_stmt("function");
+        } else if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
         } else if self.matches(&[TokenType::For]).is_some() {
             stmt = self.for_stmt();
@@ -114,6 +122,8 @@ impl Parser {
             stmt = self.if_stmt();
         } else if self.matches(&[TokenType::Print]).is_some() {
             stmt = self.print_stmt();
+        } else if self.matches(&[TokenType::Return]).is_some() {
+            stmt = self.return_stmt();
         } else if self.matches(&[TokenType::While]).is_some() {
             stmt = self.while_stmt();
         } else if self.matches(&[TokenType::LeftBrace]).is_some() {
@@ -191,7 +201,7 @@ impl Parser {
         }
 
         if cond.is_none() {
-            cond = Some(Expr::Literal(Literal::Boolean(false)));
+            cond = Some(Expr::Literal(Box::new(Literal::Boolean(false))));
         }
         body = Stmt::While(StmtWhile {
             expr: cond.unwrap(),
@@ -237,6 +247,21 @@ impl Parser {
         Ok(Stmt::Print(StmtPrint { expr }))
     }
 
+    fn return_stmt(&mut self) -> Result<Stmt> {
+        let keyword = self.previous().clone();
+        let mut val = Expr::Literal(Box::new(Value::Nil));
+
+        if !self.check(&TokenType::SemiColon) {
+            val = self.expression()?;
+        }
+
+        self.consume(
+            &TokenType::SemiColon,
+            "Expected `;` after return statement.",
+        )?;
+        Ok(Stmt::Return(StmtReturn { keyword, val }))
+    }
+
     fn block_stmt(&mut self) -> Result<Stmt> {
         let mut stmts: Vec<Stmt> = Vec::new();
 
@@ -254,6 +279,65 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(&TokenType::SemiColon, "Expected `;` after expression.")?;
         Ok(Stmt::Expr(StmtExpr { expr }))
+    }
+
+    fn fun_stmt(&mut self, kind: &str) -> Result<Stmt> {
+        let name = self
+            .consume(&TokenType::Identifier, &format!("expected {} name", kind))?
+            .clone();
+
+        self.consume(
+            &TokenType::LeftParen,
+            "Expected `(` after `fun` identifier.",
+        )?;
+
+        let mut params = vec![];
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if params.len() >= MAX_ARGS_LEN {
+                    // we throw the error here nonetheless
+                    let token = self.peek();
+
+                    return Err(LoxErr::Parse {
+                        token: format!(
+                            "No more than {} params are allowed for {}",
+                            MAX_ARGS_LEN, token
+                        ),
+                        line: token.line.to_string(),
+                        column: token.column.to_string(),
+                    });
+                }
+                params.push(
+                    self.consume(&TokenType::Identifier, "expected parameer name")?
+                        .clone(),
+                );
+
+                if self.matches(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+        self.consume(&TokenType::RightParen, "Expected `)` after params list")?;
+        let token = self
+            .consume(
+                &TokenType::LeftBrace,
+                &format!("Expected `{{` before {} body", kind),
+            )?
+            .clone();
+
+        match self.block_stmt() {
+            Err(e) => Err(e),
+            Ok(Stmt::Block(block)) => Ok(Stmt::Fun(StmtFun {
+                name,
+                params,
+                body: block,
+            })),
+            _ => Err(LoxErr::Parse {
+                token: format!("invalid statement in {} declaration", kind),
+                line: token.line.to_string(),
+                column: token.column.to_string(),
+            }),
+        }
     }
 
     fn var_stmt(&mut self) -> Result<Stmt> {
@@ -404,28 +488,74 @@ impl Parser {
             let right = self.unary()?;
             return Ok(Expr::Unary(Box::new(ExprUnary { right, operator })));
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.matches(&[TokenType::LeftParen]).is_some() {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr> {
+        let mut args = vec![];
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if args.len() >= MAX_ARGS_LEN {
+                    // we throw the error here nonetheless
+                    let token = self.peek();
+
+                    return Err(LoxErr::Parse {
+                        token: format!(
+                            "No more than {} args are allowed for {}",
+                            MAX_ARGS_LEN, token
+                        ),
+                        line: token.line.to_string(),
+                        column: token.column.to_string(),
+                    });
+                }
+                args.push(self.expression()?);
+                trace!("call args so far: {:?}", args);
+                if self.matches(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(&TokenType::RightParen, "Expected ) after args list")?;
+        Ok(Expr::Call(Box::new(ExprCall {
+            callee,
+            paren: paren.clone(),
+            args,
+        })))
     }
 
     fn primary(&mut self) -> Result<Expr> {
         if self.matches(&[TokenType::False]).is_some() {
-            return Ok(Expr::Literal(Literal::Boolean(false)));
+            return Ok(Expr::Literal(Box::new(Literal::Boolean(false))));
         }
 
         if self.matches(&[TokenType::True]).is_some() {
-            return Ok(Expr::Literal(Literal::Boolean(true)));
+            return Ok(Expr::Literal(Box::new(Literal::Boolean(true))));
         }
 
         if self.matches(&[TokenType::Nil]).is_some() {
-            return Ok(Expr::Literal(Literal::Nil));
+            return Ok(Expr::Literal(Box::new(Literal::Nil)));
         }
 
         // handle string and num literals
         if let Some(token) = self.matches(&[TokenType::String, TokenType::Number]) {
-            return Ok(Expr::Literal(match &token.literal {
+            return Ok(Expr::Literal(Box::new(match &token.literal {
                 Some(lit) => lit.clone(),
                 None => Literal::Nil,
-            }));
+            })));
         }
 
         if let Some(token) = self.matches(&[TokenType::Identifier]) {

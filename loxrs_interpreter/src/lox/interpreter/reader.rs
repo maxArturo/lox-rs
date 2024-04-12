@@ -3,7 +3,7 @@ use std::io::Write;
 use std::process::exit;
 use std::{fs, io};
 
-use crate::lox::interpreter::eval::Interpreter;
+use crate::lox::entities::eval::Interpreter;
 use crate::lox::interpreter::scan_parse;
 
 pub fn run_file(filename: &String) {

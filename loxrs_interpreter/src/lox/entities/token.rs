@@ -1,8 +1,7 @@
 use core::fmt;
 
-use crate::lox::interpreter::error::LoxErr;
+use loxrs_types::{LoxErr, Result};
 
-use super::super::error::Result;
 use super::{val::Literal, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]

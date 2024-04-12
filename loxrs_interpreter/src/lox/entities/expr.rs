@@ -18,11 +18,19 @@ fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
 pub enum Expr {
     Unary(Box<ExprUnary>),
     Binary(Box<ExprBinary>),
+    Call(Box<ExprCall>),
     Logical(Box<ExprLogical>),
-    Literal(Literal),
+    Literal(Box<Literal>),
     Grouping(Box<ExprGrouping>),
     Var(Token),
     Assign(Token, Box<ExprAssign>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprCall {
+    pub callee: Expr,
+    pub paren: Token,
+    pub args: Vec<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,6 +69,9 @@ impl fmt::Display for Expr {
             f,
             "{}",
             match self {
+                Self::Call(call) => {
+                    parenthesize(&call.callee.to_string(), call.args.iter().collect())
+                }
                 Self::Grouping(grouping) => {
                     parenthesize("grouping", vec![&grouping.expression])
                 }
