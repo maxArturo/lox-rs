@@ -12,7 +12,7 @@ impl Func {
             Func::Lox(e) => {
                 let scope = Scope::from_parent(Rc::clone(&e.scope));
 
-                for (name, val) in e.def.as_ref().params.iter().zip(args.iter()) {
+                for (name, val) in e.def.params.iter().zip(args.iter()) {
                     trace!(
                         "setting assignment before function block call: [{}] = {}",
                         name,

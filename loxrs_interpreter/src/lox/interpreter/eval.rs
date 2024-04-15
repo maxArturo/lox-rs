@@ -4,6 +4,7 @@ use std::vec;
 
 use log::{debug, trace};
 
+use crate::lox::entities::expr::ExprFunction;
 use crate::lox::entities::func::Func;
 
 use super::super::entities::eval::Interpreter;
@@ -83,11 +84,24 @@ impl Interpreter {
                 self.logical(&logical.left, &logical.right, &logical.operator)
             }
             Expr::Grouping(grouping) => self.grouping(grouping),
+            Expr::Function(func) => self.func(func),
             Expr::Literal(lit) => self.literal(lit),
             Expr::Var(var) => self.var(var),
             Expr::Assign(token, expr) => self.assign(token, expr),
             Expr::Call(call) => self.call(&call.callee, &call.args),
         }
+    }
+
+    fn func(&mut self, def: &ExprFunction) -> Result<Value> {
+        let scope = self.scope();
+
+        let func = Value::Func(Func::Lox(Function {
+            params: def.params.clone(),
+            def: def.clone(),
+            scope,
+        }));
+
+        Ok(func)
     }
 
     fn literal(&mut self, literal: &Literal) -> Result<Value> {
@@ -298,18 +312,18 @@ impl Interpreter {
         Ok(None)
     }
 
-    fn fun_stmt(&mut self, def: &StmtFun) -> Result<Option<Value>> {
+    fn fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
         let scope = self.scope();
-        trace!("assigning the following env to {:?}: {}", def, scope);
+        trace!("assigning the following env to {:?}: {}", stmt, scope);
 
         let func = Value::Func(Func::Lox(Function {
-            def: Box::new(def.clone()),
+            def: stmt.def.clone(),
             scope,
-            params: def.params.clone(),
+            params: stmt.def.params.clone(),
         }));
 
         self.scope
-            .define(def.name.extract_identifier_str()?, func.clone());
+            .define(stmt.name.extract_identifier_str()?, func.clone());
 
         Ok(None)
     }

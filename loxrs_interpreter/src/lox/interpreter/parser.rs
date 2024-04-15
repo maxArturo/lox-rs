@@ -1,6 +1,8 @@
 use log::{error, trace};
 
-use crate::lox::entities::expr::{ExprAssign, ExprBinary, ExprCall, ExprGrouping, ExprUnary};
+use crate::lox::entities::expr::{
+    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGrouping, ExprUnary,
+};
 use crate::lox::entities::stmt::{
     StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
 };
@@ -112,11 +114,14 @@ impl Parser {
 
     fn stmt(&mut self) -> Option<Stmt> {
         let stmt;
-        if self.matches(&[TokenType::Fun]).is_some() {
+        // declarations
+        if self.matches(&[TokenType::Fun]).is_some() && self.check(&TokenType::Identifier) {
             stmt = self.fun_stmt("function");
         } else if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
-        } else if self.matches(&[TokenType::For]).is_some() {
+        }
+        // statements
+        else if self.matches(&[TokenType::For]).is_some() {
             stmt = self.for_stmt();
         } else if self.matches(&[TokenType::If]).is_some() {
             stmt = self.if_stmt();
@@ -329,8 +334,10 @@ impl Parser {
             Err(e) => Err(e),
             Ok(Stmt::Block(block)) => Ok(Stmt::Fun(StmtFun {
                 name,
-                params,
-                body: block,
+                def: ExprFunction {
+                    params,
+                    body: block,
+                },
             })),
             _ => Err(LoxErr::Parse {
                 token: format!("invalid statement in {} declaration", kind),
@@ -362,7 +369,6 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr> {
-        // let eq_expr = self.equality()?;
         let or_expr = self.or()?;
 
         if let Some(eq_token) = self.matches(&[TokenType::Equal]).cloned() {
@@ -574,6 +580,56 @@ impl Parser {
             return Ok(Expr::Var(token.clone()));
         }
 
+        if self.matches(&[TokenType::Fun]).is_some() {
+            return self.func();
+        }
+
         Err(self.error(self.peek(), "expected expression"))
+    }
+
+    fn func(&mut self) -> Result<Expr> {
+        self.consume(&TokenType::LeftParen, "Expected `(` after `fun` keyword.")?;
+
+        let mut params = vec![];
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if params.len() >= MAX_ARGS_LEN {
+                    // we throw the error here nonetheless
+                    let token = self.peek();
+
+                    return Err(LoxErr::Parse {
+                        token: format!(
+                            "No more than {} params are allowed for {}",
+                            MAX_ARGS_LEN, token
+                        ),
+                        line: token.line.to_string(),
+                        column: token.column.to_string(),
+                    });
+                }
+                params.push(
+                    self.consume(&TokenType::Identifier, "expected parameer name")?
+                        .clone(),
+                );
+
+                if self.matches(&[TokenType::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+
+        self.consume(&TokenType::RightParen, "Expected `)` after params list")?;
+        let token = self
+            .consume(&TokenType::LeftBrace, "Expected `{` before func body")?
+            .clone();
+
+        match self.block_stmt() {
+            Err(e) => Err(e),
+            Ok(Stmt::Block(body)) => Ok(Expr::Function(Box::new(ExprFunction { params, body }))),
+            _ => Err(LoxErr::Parse {
+                token: "invalid statement in function declaration".to_owned(),
+                line: token.line.to_string(),
+                column: token.column.to_string(),
+            }),
+        }
     }
 }
