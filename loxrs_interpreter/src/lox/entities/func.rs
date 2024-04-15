@@ -1,5 +1,5 @@
 use super::eval::Interpreter;
-use super::stmt::StmtFun;
+use super::expr::ExprFunction;
 use super::{Token, Value};
 use loxrs_env::Scope;
 use loxrs_types::Result;
@@ -17,7 +17,7 @@ pub type FuncDefinition = fn(&mut Interpreter, Rc<Scope<Value>>) -> Result<Value
 
 #[derive(Clone)]
 pub struct Function {
-    pub def: Box<StmtFun>,
+    pub def: ExprFunction,
     pub scope: Rc<Scope<Value>>,
     pub params: Vec<Token>,
 }
@@ -28,7 +28,7 @@ impl Function {
     }
 
     pub fn name(&self) -> &str {
-        self.def.name.extract_identifier_str().unwrap()
+        "<function>"
     }
 }
 

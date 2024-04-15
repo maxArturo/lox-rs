@@ -1,8 +1,8 @@
-use std::fmt;
+use std::fmt::{self, Display};
 
-use super::{Literal, Token};
+use super::{stmt::StmtBlock, Literal, Token};
 
-fn parenthesize(name: &str, expressions: Vec<&Expr>) -> String {
+fn parenthesize<T: Display>(name: &str, expressions: Vec<&T>) -> String {
     String::from("(")
         + name
         + " "
@@ -22,8 +22,15 @@ pub enum Expr {
     Logical(Box<ExprLogical>),
     Literal(Box<Literal>),
     Grouping(Box<ExprGrouping>),
+    Function(Box<ExprFunction>),
     Var(Token),
     Assign(Token, Box<ExprAssign>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprFunction {
+    pub params: Vec<Token>,
+    pub body: StmtBlock,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +81,9 @@ impl fmt::Display for Expr {
                 }
                 Self::Grouping(grouping) => {
                     parenthesize("grouping", vec![&grouping.expression])
+                }
+                Self::Function(func) => {
+                    parenthesize("<function>", func.params.iter().collect())
                 }
                 Self::Unary(unary) =>
                     parenthesize(&unary.operator.token_type.to_string(), vec![&unary.right]),

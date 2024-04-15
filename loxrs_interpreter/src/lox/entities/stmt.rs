@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::{Expr, Token};
+use super::{expr::ExprFunction, Expr, Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
@@ -44,8 +44,7 @@ pub struct StmtReturn {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtFun {
     pub name: Token,
-    pub params: Vec<Token>,
-    pub body: StmtBlock,
+    pub def: ExprFunction,
 }
 
 #[derive(Debug, Clone, PartialEq)]
