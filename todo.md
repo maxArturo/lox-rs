@@ -20,5 +20,6 @@ attempt to subtract with overflow
 - [x] make persistent env and interpreter for REPL so that variables continue living
 - [x] add git precommit hooks locally
 - [x] add `rustfmt` gh action for the project
-- [ ] ensure env cloning is correct and performant
+- [x] ensure env cloning is correct and performant
+- [x] use single source of truth for named function declaration and IIFE
 

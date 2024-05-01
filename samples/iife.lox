@@ -12,6 +12,7 @@ thrice(fun (a) {
 var foo = fun () {};
 print "this is foo: "; 
 print foo;
-
+(fun () {})();
 
 var bar = (fun (dbar) {print "this is bar printed: " + dbar;})(33);
+
