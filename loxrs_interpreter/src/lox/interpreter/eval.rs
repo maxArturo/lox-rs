@@ -96,9 +96,9 @@ impl Interpreter {
         let scope = self.scope();
 
         let func = Value::Func(Func::Lox(Function {
-            params: def.params.clone(),
             def: def.clone(),
             scope,
+            params: def.params.clone(),
         }));
 
         Ok(func)
@@ -313,14 +313,9 @@ impl Interpreter {
     }
 
     fn fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
-        let scope = self.scope();
-        trace!("assigning the following env to {:?}: {}", stmt, scope);
+        trace!("assigning the following env to {:?}: {}", stmt, &self.scope);
 
-        let func = Value::Func(Func::Lox(Function {
-            def: stmt.def.clone(),
-            scope,
-            params: stmt.def.params.clone(),
-        }));
+        let func = self.func(&stmt.def)?;
 
         self.scope
             .define(stmt.name.extract_identifier_str()?, func.clone());
