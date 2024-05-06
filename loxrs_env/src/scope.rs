@@ -58,7 +58,7 @@ impl<T: Display + Clone> Scope<T> {
     }
 
     pub fn from_parent(parent: Rc<Scope<T>>) -> Rc<Scope<T>> {
-        let globals = parent.as_ref().globals.as_ref().map(Rc::clone);
+        let globals = parent.as_ref().globals.clone();
         Rc::new(Self {
             values: RefCell::new(HashMap::new()),
             parent: Some(parent),
