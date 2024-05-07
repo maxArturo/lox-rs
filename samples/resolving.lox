@@ -1,0 +1,15 @@
+var a = "global";
+{
+  fun showA() {
+    print "showA: " + a;
+  }
+  showA();
+
+  // shadow var
+  var a = "block";
+  showA();
+
+  print "printing `a` inside block: " + a;
+}
+
+print "printing `a` outside block: " + a;

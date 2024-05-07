@@ -15,6 +15,7 @@ use super::super::entities::{
     stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
+use super::visitor::{ExprVisitor, StmtVisitor};
 
 use loxrs_env::Scope;
 use loxrs_types::{LoxErr, Result};
@@ -75,7 +76,7 @@ impl Interpreter {
     }
 }
 
-impl Interpreter {
+impl ExprVisitor for Interpreter {
     fn eval(&mut self, expr: &Expr) -> Result<Value> {
         match expr {
             Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
@@ -270,7 +271,7 @@ impl Interpreter {
     }
 }
 
-impl Interpreter {
+impl StmtVisitor for Interpreter {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
@@ -278,7 +279,7 @@ impl Interpreter {
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
-            Stmt::Block(stmt) => self.block_stmt(stmt, self.scope()),
+            Stmt::Block(stmt) => self.block_stmt(stmt, Scope::from_parent(self.scope())),
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
@@ -323,11 +324,7 @@ impl Interpreter {
         Ok(None)
     }
 
-    pub fn block_stmt(
-        &mut self,
-        block: &StmtBlock,
-        scope: Rc<Scope<Value>>,
-    ) -> Result<Option<Value>> {
+    fn block_stmt(&mut self, block: &StmtBlock, scope: Rc<Scope<Value>>) -> Result<Option<Value>> {
         let prev_scope = Rc::clone(&self.scope);
         self.scope = scope;
 
