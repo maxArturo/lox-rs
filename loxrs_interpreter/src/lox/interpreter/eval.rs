@@ -76,23 +76,7 @@ impl Interpreter {
     }
 }
 
-impl ExprVisitor for Interpreter {
-    fn eval(&mut self, expr: &Expr) -> Result<Value> {
-        match expr {
-            Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
-            Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
-            Expr::Logical(logical) => {
-                self.logical(&logical.left, &logical.right, &logical.operator)
-            }
-            Expr::Grouping(grouping) => self.grouping(grouping),
-            Expr::Function(func) => self.func(func),
-            Expr::Literal(lit) => self.literal(lit),
-            Expr::Var(var) => self.var(var),
-            Expr::Assign(token, expr) => self.assign(token, expr),
-            Expr::Call(call) => self.call(&call.callee, &call.args),
-        }
-    }
-
+impl ExprVisitor<Value> for Interpreter {
     fn func(&mut self, def: &ExprFunction) -> Result<Value> {
         let scope = self.scope();
 
