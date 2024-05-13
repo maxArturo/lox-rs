@@ -1,10 +1,12 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 use std::vec;
 
 use log::{debug, trace};
 
-use crate::lox::entities::expr::ExprFunction;
+use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::Func;
 
 use super::super::entities::eval::Interpreter;
@@ -24,6 +26,7 @@ impl Interpreter {
     pub fn new() -> Self {
         Self {
             scope: Self::setup_native_fns(),
+            locals: RefCell::new(HashMap::new()),
         }
     }
 
@@ -186,10 +189,19 @@ impl ExprVisitor<Value> for Interpreter {
         self.eval(&expression.expression)
     }
 
-    fn var(&self, expression: &Token) -> Result<Value> {
-        let str = expression.extract_identifier_str()?;
-        let res = self.scope.get(str)?;
-        Ok(res.clone())
+    fn var(&self, expression: &Expr) -> Result<Value> {
+        if let ExprKind::Var(var) = &expression.kind {
+            let str = var.extract_identifier_str()?;
+            let res = self.scope.get(str)?;
+            return Ok(res.clone());
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `var` code path, programmer error",
+                expression
+            ),
+        })
     }
 
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {

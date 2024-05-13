@@ -1,7 +1,7 @@
 use log::{error, trace};
 
 use crate::lox::entities::expr::{
-    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGrouping, ExprUnary,
+    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGrouping, ExprKind, ExprUnary,
 };
 use crate::lox::entities::stmt::{
     StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
@@ -206,7 +206,9 @@ impl Parser {
         }
 
         if cond.is_none() {
-            cond = Some(Expr::Literal(Box::new(Literal::Boolean(false))));
+            cond = Some(Expr::new(ExprKind::Literal(Box::new(Literal::Boolean(
+                false,
+            )))));
         }
         body = Stmt::While(StmtWhile {
             expr: cond.unwrap(),
@@ -254,7 +256,7 @@ impl Parser {
 
     fn return_stmt(&mut self) -> Result<Stmt> {
         let keyword = self.previous().clone();
-        let mut val = Expr::Literal(Box::new(Value::Nil));
+        let mut val = Expr::new(ExprKind::Literal(Box::new(Value::Nil)));
 
         if !self.check(&TokenType::SemiColon) {
             val = self.expression()?;
@@ -374,12 +376,12 @@ impl Parser {
         if let Some(eq_token) = self.matches(&[TokenType::Equal]).cloned() {
             let val = self.assignment()?;
 
-            match or_expr {
-                Expr::Var(token) => {
-                    return Ok(Expr::Assign(
+            match or_expr.kind {
+                ExprKind::Var(token) => {
+                    return Ok(Expr::new(ExprKind::Assign(
                         token,
                         Box::new(ExprAssign { expression: val }),
-                    ))
+                    )))
                 }
                 _ => {
                     // explicitly not returning the error, but displaying it
@@ -397,11 +399,11 @@ impl Parser {
         while self.matches(&[TokenType::Or]).is_some() {
             let operator = self.previous().clone();
             let right = self.and()?;
-            expr = Expr::Logical(Box::new(ExprLogical {
+            expr = Expr::new(ExprKind::Logical(Box::new(ExprLogical {
                 left: expr,
                 right,
                 operator,
-            }));
+            })));
         }
         Ok(expr)
     }
@@ -412,11 +414,11 @@ impl Parser {
         while self.matches(&[TokenType::And]).is_some() {
             let operator = self.previous().clone();
             let right = self.equality()?;
-            expr = Expr::Logical(Box::new(ExprLogical {
+            expr = Expr::new(ExprKind::Logical(Box::new(ExprLogical {
                 left: expr,
                 right,
                 operator,
-            }));
+            })));
         }
         Ok(expr)
     }
@@ -429,11 +431,11 @@ impl Parser {
         {
             let operator = self.previous().clone();
             let right = self.comparison()?;
-            expr = Expr::Binary(Box::new(ExprBinary {
+            expr = Expr::new(ExprKind::Binary(Box::new(ExprBinary {
                 left: expr,
                 right,
                 operator,
-            }));
+            })));
         }
         Ok(expr)
     }
@@ -451,11 +453,11 @@ impl Parser {
         {
             let operator = self.previous().clone();
             let right = self.term()?;
-            expr = Expr::Binary(Box::new(ExprBinary {
+            expr = Expr::new(ExprKind::Binary(Box::new(ExprBinary {
                 left: expr,
                 right,
                 operator,
-            }));
+            })));
         }
         Ok(expr)
     }
@@ -465,11 +467,11 @@ impl Parser {
         while self.matches(&[TokenType::Minus, TokenType::Plus]).is_some() {
             let operator = self.previous().clone();
             let right = self.factor()?;
-            expr = Expr::Binary(Box::new(ExprBinary {
+            expr = Expr::new(ExprKind::Binary(Box::new(ExprBinary {
                 left: expr,
                 right,
                 operator,
-            }));
+            })));
         }
         Ok(expr)
     }
@@ -479,11 +481,11 @@ impl Parser {
         while self.matches(&[TokenType::Slash, TokenType::Star]).is_some() {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            expr = Expr::Binary(Box::new(ExprBinary {
+            expr = Expr::new(ExprKind::Binary(Box::new(ExprBinary {
                 left: expr,
                 right,
                 operator,
-            }));
+            })));
         }
         Ok(expr)
     }
@@ -492,7 +494,10 @@ impl Parser {
         if self.matches(&[TokenType::Bang, TokenType::Minus]).is_some() {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            return Ok(Expr::Unary(Box::new(ExprUnary { right, operator })));
+            return Ok(Expr::new(ExprKind::Unary(Box::new(ExprUnary {
+                right,
+                operator,
+            }))));
         }
         self.call()
     }
@@ -536,48 +541,54 @@ impl Parser {
         }
 
         let paren = self.consume(&TokenType::RightParen, "Expected ) after args list")?;
-        Ok(Expr::Call(Box::new(ExprCall {
+        Ok(Expr::new(ExprKind::Call(Box::new(ExprCall {
             callee,
             paren: paren.clone(),
             args,
-        })))
+        }))))
     }
 
     fn primary(&mut self) -> Result<Expr> {
         if self.matches(&[TokenType::False]).is_some() {
-            return Ok(Expr::Literal(Box::new(Literal::Boolean(false))));
+            return Ok(Expr::new(ExprKind::Literal(Box::new(Literal::Boolean(
+                false,
+            )))));
         }
 
         if self.matches(&[TokenType::True]).is_some() {
-            return Ok(Expr::Literal(Box::new(Literal::Boolean(true))));
+            return Ok(Expr::new(ExprKind::Literal(Box::new(Literal::Boolean(
+                true,
+            )))));
         }
 
         if self.matches(&[TokenType::Nil]).is_some() {
-            return Ok(Expr::Literal(Box::new(Literal::Nil)));
+            return Ok(Expr::new(ExprKind::Literal(Box::new(Literal::Nil))));
         }
 
         // handle string and num literals
         if let Some(token) = self.matches(&[TokenType::String, TokenType::Number]) {
-            return Ok(Expr::Literal(Box::new(match &token.literal {
-                Some(lit) => lit.clone(),
-                None => Literal::Nil,
-            })));
+            return Ok(Expr::new(ExprKind::Literal(Box::new(
+                match &token.literal {
+                    Some(lit) => lit.clone(),
+                    None => Literal::Nil,
+                },
+            ))));
         }
 
         if let Some(token) = self.matches(&[TokenType::Identifier]) {
-            return Ok(Expr::Var(token.clone()));
+            return Ok(Expr::new(ExprKind::Var(token.clone())));
         }
 
         if self.matches(&[TokenType::LeftParen]).is_some() {
             let inner_expr = self.expression()?;
             self.consume(&TokenType::RightParen, "Expected ) after this token")?;
-            return Ok(Expr::Grouping(Box::new(ExprGrouping {
+            return Ok(Expr::new(ExprKind::Grouping(Box::new(ExprGrouping {
                 expression: inner_expr,
-            })));
+            }))));
         }
 
         if let Some(token) = self.matches(&[TokenType::Identifier]) {
-            return Ok(Expr::Var(token.clone()));
+            return Ok(Expr::new(ExprKind::Var(token.clone())));
         }
 
         if self.matches(&[TokenType::Fun]).is_some() {
@@ -624,7 +635,10 @@ impl Parser {
 
         match self.block_stmt() {
             Err(e) => Err(e),
-            Ok(Stmt::Block(body)) => Ok(Expr::Function(Box::new(ExprFunction { params, body }))),
+            Ok(Stmt::Block(body)) => Ok(Expr::new(ExprKind::Function(Box::new(ExprFunction {
+                params,
+                body,
+            })))),
             _ => Err(LoxErr::Parse {
                 token: "invalid statement in function declaration".to_owned(),
                 line: token.line.to_string(),

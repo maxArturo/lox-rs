@@ -1,3 +1,5 @@
+use crate::lox::entities::expr::ExprKind;
+
 use super::super::entities::{
     expr::{ExprAssign, ExprFunction, ExprGrouping},
     stmt::{StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile},
@@ -30,18 +32,18 @@ pub trait StmtVisitor {
 
 pub trait ExprVisitor<T> {
     fn eval(&mut self, expr: &Expr) -> Result<T> {
-        match expr {
-            Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
-            Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
-            Expr::Logical(logical) => {
+        match &expr.kind {
+            ExprKind::Unary(unary) => self.unary(&unary.right, &unary.operator),
+            ExprKind::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
+            ExprKind::Logical(logical) => {
                 self.logical(&logical.left, &logical.right, &logical.operator)
             }
-            Expr::Grouping(grouping) => self.grouping(grouping),
-            Expr::Function(func) => self.func(func),
-            Expr::Literal(lit) => self.literal(lit),
-            Expr::Var(var) => self.var(var),
-            Expr::Assign(token, expr) => self.assign(token, expr),
-            Expr::Call(call) => self.call(&call.callee, &call.args),
+            ExprKind::Grouping(grouping) => self.grouping(grouping.as_ref()),
+            ExprKind::Function(func) => self.func(func.as_ref()),
+            ExprKind::Literal(lit) => self.literal(lit.as_ref()),
+            ExprKind::Var(_) => self.var(expr),
+            ExprKind::Assign(token, expr) => self.assign(token, expr.as_ref()),
+            ExprKind::Call(call) => self.call(&call.callee, &call.args),
         }
     }
 
@@ -55,7 +57,7 @@ pub trait ExprVisitor<T> {
 
     fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
 
-    fn var(&self, expression: &Token) -> Result<T>;
+    fn var(&self, expression: &Expr) -> Result<T>;
 
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
 

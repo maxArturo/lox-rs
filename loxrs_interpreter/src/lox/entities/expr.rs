@@ -1,4 +1,7 @@
 use std::fmt::{self, Display};
+use std::hash::Hash;
+
+use uuid::Uuid;
 
 use super::{stmt::StmtBlock, Literal, Token};
 
@@ -15,7 +18,36 @@ fn parenthesize<T: Display>(name: &str, expressions: Vec<&T>) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub struct Expr {
+    id: Uuid,
+    pub kind: ExprKind,
+}
+
+impl Eq for Expr {}
+
+impl Expr {
+    pub fn new(kind: ExprKind) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            kind,
+        }
+    }
+}
+
+impl Hash for Expr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Expr<[{}], [{}]>", self.id, self.kind)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprKind {
     Unary(Box<ExprUnary>),
     Binary(Box<ExprBinary>),
     Call(Box<ExprCall>),
@@ -70,7 +102,7 @@ pub struct ExprLogical {
     pub operator: Token,
 }
 
-impl fmt::Display for Expr {
+impl fmt::Display for ExprKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
