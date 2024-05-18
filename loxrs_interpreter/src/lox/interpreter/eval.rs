@@ -57,6 +57,20 @@ impl Interpreter {
         Rc::clone(&self.scope)
     }
 
+    fn lookup_var(&self, name: &str, expr: &Expr) -> Result<Value> {
+        trace!(
+            "[lookup_var] looking up {} in {:?}",
+            expr,
+            self.locals.borrow()
+        );
+
+        if let Some(distance) = self.locals.borrow().get(expr) {
+            trace!("[lookup_var] found {} with value of {}", expr, distance);
+            return self.scope.get_at(*distance, name);
+        }
+        self.scope.get_globals(name)
+    }
+
     fn truthy(&self, val: &Value) -> Value {
         Value::Boolean(match val {
             &Value::Boolean(val) => val,
@@ -192,7 +206,9 @@ impl ExprVisitor<Value> for Interpreter {
     fn var(&self, expression: &Expr) -> Result<Value> {
         if let ExprKind::Var(var) = &expression.kind {
             let str = var.extract_identifier_str()?;
-            let res = self.scope.get(str)?;
+            // let res = self.scope.get(str)?;
+
+            let res = self.lookup_var(str, expression)?;
             return Ok(res.clone());
         }
 
@@ -206,8 +222,14 @@ impl ExprVisitor<Value> for Interpreter {
 
     fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
         let val = self.eval(&expr.expression)?;
-        self.scope
-            .assign(token.extract_identifier_str()?, val.clone())?;
+        let var_name = token.extract_identifier_str()?;
+
+        if let Some(distance) = self.locals.borrow().get(&expr.expression) {
+            self.scope.assign_at(*distance, var_name, val.clone())?;
+        } else {
+            self.scope.define_global(var_name, val.clone());
+        }
+
         Ok(val)
     }
 
@@ -303,9 +325,10 @@ impl StmtVisitor for Interpreter {
     }
 
     fn var_stmt(&mut self, var: &StmtVar) -> Result<Option<Value>> {
-        trace!("var statement: {:?}", var);
         let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
         self.scope.define(var.token.extract_identifier_str()?, val);
+
+        trace!("var statement {:?} defined in scope: {}", var, self.scope);
         Ok(None)
     }
 

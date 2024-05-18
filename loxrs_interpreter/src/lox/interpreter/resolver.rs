@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt::Display;
 use std::{collections::HashMap, rc::Rc};
 
 use crate::lox::entities::expr::ExprKind;
@@ -13,7 +14,7 @@ use super::{
     },
     visitor::ExprVisitor,
 };
-use log::debug;
+use log::{debug, trace};
 use loxrs_env::Scope;
 use loxrs_types::{LoxErr, Result};
 
@@ -23,7 +24,29 @@ pub struct Resolver {
     stack: Vec<HashMap<String, bool>>,
 }
 
+impl Display for Resolver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Resolver: <")?;
+        for el in &self.stack {
+            write!(f, "[")?;
+            for (k, v) in el.iter() {
+                write!(f, "({}: {}) ", k, v)?;
+            }
+            write!(f, "]")?;
+        }
+
+        write!(f, ">")
+    }
+}
+
 impl Resolver {
+    pub fn new(interpreter: Rc<RefCell<Interpreter>>) -> Self {
+        Self {
+            interpreter,
+            stack: vec![],
+        }
+    }
+
     fn resolve_fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
         self.begin_scope();
 
@@ -61,11 +84,12 @@ impl Resolver {
         self.stack.pop();
     }
 
-    fn resolve(&mut self, stmts: &Vec<Stmt>) -> Result<Option<Value>> {
+    pub fn resolve(&mut self, stmts: &Vec<Stmt>) -> Result<Option<Value>> {
         for stmt in stmts {
             self.resolve_stmt(stmt)?;
         }
 
+        trace!("resolver result: {}", self);
         Ok(None)
     }
 
@@ -79,6 +103,7 @@ impl Resolver {
     }
 
     fn resolve_local(&self, expr: &Expr, name: &str) -> Result<Option<Value>> {
+        trace!("resolving to locals: {} with stack: {}", expr, self,);
         for (idx, scope) in self.stack.iter().rev().enumerate() {
             if scope.contains_key(name) {
                 self.interpreter.as_ref().borrow_mut().resolve(expr, idx);
@@ -108,7 +133,7 @@ impl StmtVisitor for Resolver {
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
-        debug!("statement execution result for {}: {:?}", stmt, res);
+        debug!("resolver result for {}: {:?}", stmt, res);
         res
     }
 
