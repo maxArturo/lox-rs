@@ -42,7 +42,7 @@ impl Hash for Expr {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Expr<[{}], [{}]>", self.id, self.kind)
+        write!(f, "Expr<[id: {}], [kind: {}]>", self.id, self.kind)
     }
 }
 
@@ -128,10 +128,11 @@ impl fmt::Display for ExprKind {
                     vec![&logical.left, &logical.right]
                 ),
                 Self::Literal(value) => value.to_string(),
-                Self::Var(var) => var
-                    .literal
-                    .clone()
-                    .map_or("None".to_string(), |t| t.to_string()),
+                Self::Var(var) => var.literal.clone().map_or("None".to_string(), |t| format!(
+                    "line: {}, col: {}, {}",
+                    var.line, var.column, t
+                )
+                .to_string()),
                 Self::Assign(token, expr) => format!("token: {}, expr: {}", token, expr.expression),
             }
         )

@@ -24,8 +24,10 @@ use loxrs_types::{LoxErr, Result};
 
 impl Interpreter {
     pub fn new() -> Self {
+        let scope = Self::setup_native_fns();
         Self {
-            scope: Self::setup_native_fns(),
+            scope: Rc::clone(&scope),
+            globals: Rc::clone(&scope),
             locals: RefCell::new(HashMap::new()),
         }
     }
@@ -33,7 +35,7 @@ impl Interpreter {
     fn setup_native_fns() -> Rc<Scope<Value>> {
         let scope = Rc::new(Scope::new());
 
-        scope.define_global(
+        scope.define(
             "time",
             Value::Func(Func::Native(NativeFunction::new(
                 |_args, _env| Ok(Value::String(format!("{:?}", Instant::now()))),
@@ -68,7 +70,7 @@ impl Interpreter {
             trace!("[lookup_var] found {} with value of {}", expr, distance);
             return self.scope.get_at(*distance, name);
         }
-        self.scope.get_globals(name)
+        self.globals.get(name)
     }
 
     fn truthy(&self, val: &Value) -> Value {
@@ -206,7 +208,6 @@ impl ExprVisitor<Value> for Interpreter {
     fn var(&self, expression: &Expr) -> Result<Value> {
         if let ExprKind::Var(var) = &expression.kind {
             let str = var.extract_identifier_str()?;
-            // let res = self.scope.get(str)?;
 
             let res = self.lookup_var(str, expression)?;
             return Ok(res.clone());
@@ -226,8 +227,14 @@ impl ExprVisitor<Value> for Interpreter {
 
         if let Some(distance) = self.locals.borrow().get(&expr.expression) {
             self.scope.assign_at(*distance, var_name, val.clone())?;
+        } else if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
+            // TODO missing tests here
+            return Err(LoxErr::Eval {
+                expr: var_name.to_owned(),
+                message: "Not allowed to override native function".to_owned(),
+            });
         } else {
-            self.scope.define_global(var_name, val.clone());
+            self.globals.define(var_name, val.clone());
         }
 
         Ok(val)
@@ -344,12 +351,14 @@ impl StmtVisitor for Interpreter {
     }
 
     fn block_stmt(&mut self, block: &StmtBlock, scope: Rc<Scope<Value>>) -> Result<Option<Value>> {
+        trace!("block statement: {:?}", block);
         let prev_scope = Rc::clone(&self.scope);
+
         self.scope = scope;
+        trace!("new scope for block statement: {}", self.scope);
 
         let mut res = Ok(None);
 
-        trace!("block statement: {:?}", block);
         for stmt in block.stmts.as_slice() {
             if let Some(val) = self.exec_stmt(stmt)? {
                 res = Ok(Some(val));

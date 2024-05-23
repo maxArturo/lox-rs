@@ -168,8 +168,9 @@ impl Parser {
     /// Desugars a `for` into `StmtBlock` and `StmtWhile` statements.
     fn for_stmt(&mut self) -> Result<Stmt> {
         self.consume(&TokenType::LeftParen, "Expected `(` after `for` statement.")?;
-        let init;
 
+        // init block
+        let init;
         if self.matches(&[TokenType::SemiColon]).is_some() {
             init = None;
         } else if self.matches(&[TokenType::Var]).is_some() {
@@ -178,12 +179,14 @@ impl Parser {
             init = Some(self.expr_stmt()?);
         }
 
+        // cond block
         let mut cond = None;
         if !self.check(&TokenType::SemiColon) {
             cond = Some(self.expression()?);
         }
         self.consume(&TokenType::SemiColon, "Expected `;` after `for` condition.")?;
 
+        // incr block
         let mut incr = None;
         if !self.check(&TokenType::RightParen) {
             incr = Some(self.expression()?);

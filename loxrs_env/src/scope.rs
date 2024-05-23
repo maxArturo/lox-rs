@@ -12,7 +12,6 @@ type Link<T> = Option<Rc<Scope<T>>>;
 pub struct Scope<T> {
     values: RefCell<HashMap<String, T>>,
     pub parent: Link<T>,
-    pub globals: Link<T>,
 }
 
 impl<T: Display> Scope<T> {
@@ -45,35 +44,18 @@ impl<T: Display + Clone> Scope<T> {
         Self {
             values: RefCell::new(HashMap::default()),
             parent: None,
-            globals: Self::new_globals(),
         }
     }
 
-    fn new_globals() -> Link<T> {
-        Some(Rc::new(Self {
-            values: RefCell::new(HashMap::default()),
-            parent: None,
-            globals: None,
-        }))
-    }
-
     pub fn from_parent(parent: Rc<Scope<T>>) -> Rc<Scope<T>> {
-        let globals = parent.as_ref().globals.clone();
         Rc::new(Self {
             values: RefCell::new(HashMap::new()),
             parent: Some(parent),
-            globals,
         })
     }
 
     pub fn define(&self, name: &str, val: T) {
         self.values.borrow_mut().insert(name.to_string(), val);
-    }
-
-    pub fn define_global(&self, name: &str, val: T) {
-        if let Some(el) = self.globals.as_ref() {
-            el.define(name, val)
-        }
     }
 
     pub fn assign(&self, name: &str, val: T) -> Result<()> {
@@ -121,7 +103,7 @@ impl<T: Display + Clone> Scope<T> {
     fn ancestor(&self, distance: usize) -> Result<&Scope<T>> {
         let mut parent = self;
 
-        for _i in 1..distance {
+        for _i in 0..distance {
             parent = parent
             .parent.as_ref()
             .ok_or::<LoxErr>(LoxErr::Internal {
@@ -131,16 +113,6 @@ impl<T: Display + Clone> Scope<T> {
         }
 
         Ok(parent)
-    }
-
-    pub fn get_globals(&self, name: &str) -> Result<T> {
-        trace!("[get_globals] looking for: `{}` in:\n{}", name, self);
-        self.globals
-            .as_ref()
-            .and_then(|globals| globals.get(name).ok())
-            .ok_or(LoxErr::Undefined {
-                message: format!("variable undefined: {}", name),
-            })
     }
 }
 

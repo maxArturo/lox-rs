@@ -9,19 +9,18 @@ use loxrs_env::Scope;
 #[derive(Debug, Clone)]
 pub struct Interpreter {
     pub scope: Rc<Scope<Value>>,
+    pub globals: Rc<Scope<Value>>,
     pub locals: RefCell<HashMap<Expr, usize>>,
 }
 
 impl Display for Interpreter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Interpreter: <locals: [")?;
+        writeln!(f, "\nInterpreter: <locals: [")?;
 
         for (k, v) in self.locals.borrow().iter() {
-            write!(f, "({}: {}) ", k, v)?;
+            writeln!(f, "  ({}: {}) ", k, v)?;
         }
 
-        write!(f, "]")?;
-
-        write!(f, ">")
+        write!(f, "]>")
     }
 }

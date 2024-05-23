@@ -343,7 +343,7 @@ impl Scan for Scanner {
 }
 
 pub fn scan_parse(raw_s: &str) -> Result<Vec<Stmt>, Vec<LoxErr>> {
-    debug!("received: {raw_s}");
+    debug!("received: \n{raw_s}");
     let mut scanner = Scanner::new(String::from(raw_s));
 
     let tokens = scanner.scan()?;

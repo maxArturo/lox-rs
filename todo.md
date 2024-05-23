@@ -24,3 +24,7 @@ attempt to subtract with overflow
 - [x] use single source of truth for named function declaration and IIFE
 - [ ] prevent reassignment of shadow variables
 
+
+Latest bug: 
+
+- It has to do with how I fetch assignment and variable declarations. When I run assignment, I have a token and an expression. But i need to pass that into the map which uses a UUID to map an expression back into what thing its referring to... that's the wole bug.

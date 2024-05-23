@@ -14,7 +14,7 @@ use super::{
     },
     visitor::ExprVisitor,
 };
-use log::{debug, trace};
+use log::trace;
 use loxrs_env::Scope;
 use loxrs_types::{LoxErr, Result};
 
@@ -89,7 +89,6 @@ impl Resolver {
             self.resolve_stmt(stmt)?;
         }
 
-        trace!("resolver result: {}", self);
         Ok(None)
     }
 
@@ -105,7 +104,14 @@ impl Resolver {
     fn resolve_local(&self, expr: &Expr, name: &str) -> Result<Option<Value>> {
         trace!("resolving to locals: {} with stack: {}", expr, self,);
         for (idx, scope) in self.stack.iter().rev().enumerate() {
+            trace!(
+                "searching for {} within stack no: {} and curr stack: {:?}",
+                expr,
+                idx,
+                &scope
+            );
             if scope.contains_key(name) {
+                trace!("found! resolving {} within stack no.: {}", expr, idx,);
                 self.interpreter.as_ref().borrow_mut().resolve(expr, idx);
                 return Ok(None);
             }
@@ -123,7 +129,7 @@ impl Interpreter {
 
 impl StmtVisitor for Resolver {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
-        let res = match stmt {
+        match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
             Stmt::Return(stmt) => self.return_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
@@ -132,9 +138,7 @@ impl StmtVisitor for Resolver {
             Stmt::Block(stmt) => self.block_stmt(stmt, Rc::new(Scope::new())),
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
-        };
-        debug!("resolver result for {}: {:?}", stmt, res);
-        res
+        }
     }
 
     fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<Option<Value>> {
@@ -171,7 +175,11 @@ impl StmtVisitor for Resolver {
         _scope: Rc<loxrs_env::Scope<Value>>,
     ) -> Result<Option<Value>> {
         self.begin_scope();
+
+        trace!("traversing block with this stack: {}", &self);
         self.resolve(&block.stmts)?;
+
+        trace!("done traversing block! ejecting scope... {}", &self);
         self.end_scope();
 
         Ok(None)
@@ -222,6 +230,7 @@ impl ExprVisitor<Option<Value>> for Resolver {
 
     fn var(&self, expression: &Expr) -> Result<Option<Value>> {
         if let ExprKind::Var(var) = &expression.kind {
+            trace!("var expr: {}", var);
             let name = var.extract_identifier_str()?;
             if self
                 .stack
@@ -233,6 +242,7 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 });
             }
 
+            trace!("resolving to locals from var expr: {}", var);
             self.resolve_local(expression, name)?;
             return Ok(None);
         }
@@ -250,7 +260,10 @@ impl ExprVisitor<Option<Value>> for Resolver {
         token: &Token,
         expr: &crate::lox::entities::expr::ExprAssign,
     ) -> Result<Option<Value>> {
+        trace!("assign expr: Token: {}, expr: {}", token, expr.expression);
         self.resolve_expr(&expr.expression)?;
+
+        trace!("resolving to locals from assign expr...\nexpr: Token: {}, expr: {}", token, expr.expression);
         self.resolve_local(&expr.expression, token.extract_identifier_str()?)
     }
 
