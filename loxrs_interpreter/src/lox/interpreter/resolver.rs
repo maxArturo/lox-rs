@@ -263,7 +263,11 @@ impl ExprVisitor<Option<Value>> for Resolver {
         trace!("assign expr: Token: {}, expr: {}", token, expr.expression);
         self.resolve_expr(&expr.expression)?;
 
-        trace!("resolving to locals from assign expr...\nexpr: Token: {}, expr: {}", token, expr.expression);
+        trace!(
+            "resolving to locals from assign expr...\nexpr: Token: {}, expr: {}",
+            token,
+            expr.expression
+        );
         self.resolve_local(&expr.expression, token.extract_identifier_str()?)
     }
 

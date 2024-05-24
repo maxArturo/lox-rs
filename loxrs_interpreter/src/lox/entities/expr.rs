@@ -65,6 +65,23 @@ pub struct ExprFunction {
     pub body: StmtBlock,
 }
 
+impl Display for ExprFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let params: Vec<&str> = self
+            .params
+            .iter()
+            .map(|el| el.extract_identifier_str().unwrap())
+            .collect();
+
+        write!(f, "Expr[Function]")?;
+        if !params.is_empty() {
+            write!(f, "params: [{:?}]", params)?;
+        }
+
+        write!(f, "body: {}", self.body)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprCall {
     pub callee: Expr,
