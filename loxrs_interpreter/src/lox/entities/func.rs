@@ -8,6 +8,12 @@ use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 #[derive(Clone, PartialEq, Debug)]
+pub enum FuncType {
+    Function,
+    None,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum Func {
     Lox(Function),
     Native(NativeFunction),

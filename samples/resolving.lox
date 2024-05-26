@@ -1,0 +1,25 @@
+print "printing the fibonacci sequence up to 10000";
+var a = 0;
+var temp;
+
+for (var b = 1; a < 10; b = temp + b) {
+  print a;
+  temp = a;
+  a = b;
+}
+
+// var a = "global";
+// {
+//   fun showA() {
+//     print "showA: " + a;
+//   }
+//   showA();
+// 
+//   // shadow var
+//   var a = "block";
+//   showA();
+// 
+//   print "printing `a` inside block: " + a;
+// }
+// 
+// print "printing `a` outside block: " + a;

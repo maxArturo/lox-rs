@@ -4,7 +4,10 @@ use log::trace;
 use loxrs_env::Scope;
 use loxrs_types::Result;
 
-use crate::lox::entities::{eval::Interpreter, func::Func, Value};
+use crate::lox::{
+    entities::{eval::Interpreter, func::Func, Value},
+    interpreter::visitor::StmtVisitor,
+};
 
 impl Func {
     pub fn call(&mut self, interpreter: &mut Interpreter, args: Vec<Value>) -> Result<Value> {

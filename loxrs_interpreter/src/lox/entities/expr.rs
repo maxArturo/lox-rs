@@ -1,4 +1,7 @@
 use std::fmt::{self, Display};
+use std::hash::Hash;
+
+use uuid::Uuid;
 
 use super::{stmt::StmtBlock, Literal, Token};
 
@@ -15,7 +18,36 @@ fn parenthesize<T: Display>(name: &str, expressions: Vec<&T>) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub struct Expr {
+    id: Uuid,
+    pub kind: ExprKind,
+}
+
+impl Eq for Expr {}
+
+impl Expr {
+    pub fn new(kind: ExprKind) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            kind,
+        }
+    }
+}
+
+impl Hash for Expr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Expr<[id: {}], [kind: {}]>", self.id, self.kind)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprKind {
     Unary(Box<ExprUnary>),
     Binary(Box<ExprBinary>),
     Call(Box<ExprCall>),
@@ -24,13 +56,35 @@ pub enum Expr {
     Grouping(Box<ExprGrouping>),
     Function(Box<ExprFunction>),
     Var(Token),
-    Assign(Token, Box<ExprAssign>),
+    Assign(Box<ExprAssign>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprFunction {
     pub params: Vec<Token>,
     pub body: StmtBlock,
+}
+
+impl Display for ExprFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("[ExprFunction]")
+            .field("params", &self.params)
+            .field("body", &self.body)
+            .finish()
+
+        // let params: Vec<&str> = self
+        //     .params
+        //     .iter()
+        //     .map(|el| el.extract_identifier_str().unwrap())
+        //     .collect();
+        //
+        // write!(f, "Expr[Function] ")?;
+        // if !params.is_empty() {
+        //     write!(f, "params: [{:?}] ", params)?;
+        // }
+        //
+        // write!(f, "body:\n  {}", self.body)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +96,7 @@ pub struct ExprCall {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprAssign {
+    pub name: Token,
     pub expression: Expr,
 }
 
@@ -70,7 +125,7 @@ pub struct ExprLogical {
     pub operator: Token,
 }
 
-impl fmt::Display for Expr {
+impl fmt::Display for ExprKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -96,11 +151,13 @@ impl fmt::Display for Expr {
                     vec![&logical.left, &logical.right]
                 ),
                 Self::Literal(value) => value.to_string(),
-                Self::Var(var) => var
-                    .literal
-                    .clone()
-                    .map_or("None".to_string(), |t| t.to_string()),
-                Self::Assign(token, expr) => format!("token: {}, expr: {}", token, expr.expression),
+                Self::Var(var) => var.literal.clone().map_or("None".to_string(), |t| format!(
+                    "line: {}, col: {}, {}",
+                    var.line, var.column, t
+                )
+                .to_string()),
+                Self::Assign(assign) =>
+                    format!("target: {}, expr: {}", assign.name, assign.expression),
             }
         )
     }

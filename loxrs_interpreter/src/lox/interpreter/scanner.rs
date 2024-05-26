@@ -2,7 +2,7 @@ use std::{f64, usize};
 
 use crate::lox::entities::{Literal, Stmt, Token, TokenType};
 use crate::lox::interpreter::parser;
-use log::{debug, trace};
+use log::debug;
 
 use loxrs_types::{LoxErr, Result};
 
@@ -343,12 +343,11 @@ impl Scan for Scanner {
 }
 
 pub fn scan_parse(raw_s: &str) -> Result<Vec<Stmt>, Vec<LoxErr>> {
-    debug!("received: {raw_s}");
+    debug!("received: \n{raw_s}");
     let mut scanner = Scanner::new(String::from(raw_s));
 
     let tokens = scanner.scan()?;
 
-    trace!("Here are the tokens that we found: {:#?}", &tokens);
     let mut parser = parser::Parser::new(tokens);
 
     parser.parse().map_err(|e| vec![e])

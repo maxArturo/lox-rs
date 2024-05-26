@@ -22,4 +22,8 @@ attempt to subtract with overflow
 - [x] add `rustfmt` gh action for the project
 - [x] ensure env cloning is correct and performant
 - [x] use single source of truth for named function declaration and IIFE
+- [x] prevent reassignment of shadow variables
+- [x] working variable resolution pass
+- [x] error on reassigned variables within same scope
+- [x] error on return statements outside of function scope
 

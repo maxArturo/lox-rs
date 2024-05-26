@@ -12,7 +12,6 @@ type Link<T> = Option<Rc<Scope<T>>>;
 pub struct Scope<T> {
     values: RefCell<HashMap<String, T>>,
     pub parent: Link<T>,
-    pub globals: Link<T>,
 }
 
 impl<T: Display> Scope<T> {
@@ -45,35 +44,18 @@ impl<T: Display + Clone> Scope<T> {
         Self {
             values: RefCell::new(HashMap::default()),
             parent: None,
-            globals: Self::new_globals(),
         }
     }
 
-    fn new_globals() -> Link<T> {
-        Some(Rc::new(Self {
-            values: RefCell::new(HashMap::default()),
-            parent: None,
-            globals: None,
-        }))
-    }
-
     pub fn from_parent(parent: Rc<Scope<T>>) -> Rc<Scope<T>> {
-        let globals = parent.as_ref().globals.as_ref().map(Rc::clone);
         Rc::new(Self {
             values: RefCell::new(HashMap::new()),
             parent: Some(parent),
-            globals,
         })
     }
 
     pub fn define(&self, name: &str, val: T) {
         self.values.borrow_mut().insert(name.to_string(), val);
-    }
-
-    pub fn define_global(&self, name: &str, val: T) {
-        if let Some(el) = self.globals.as_ref() {
-            el.define(name, val)
-        }
     }
 
     pub fn assign(&self, name: &str, val: T) -> Result<()> {
@@ -95,27 +77,42 @@ impl<T: Display + Clone> Scope<T> {
         }
     }
 
+    pub fn assign_at(&self, distance: usize, name: &str, val: T) -> Result<()> {
+        self.ancestor(distance)?
+            .values
+            .borrow_mut()
+            .insert(name.to_owned(), val);
+        Ok(())
+    }
+
     pub fn get(&self, name: &str) -> Result<T> {
         trace!("[get] looking for: `{}` in:\n{}", name, self);
         self.values
             .borrow()
             .get(name)
             .cloned()
-            .or_else(|| {
-                trace!("[get] going into parent...");
-                self.parent
-                    .as_ref()
-                    .and_then(|parent| parent.as_ref().get(name).ok())
-            })
-            .or_else(|| {
-                trace!("[get] going into globals...");
-                self.globals
-                    .as_ref()
-                    .and_then(|globals| globals.get(name).ok())
-            })
             .ok_or(LoxErr::Undefined {
                 message: format!("variable undefined: {}", name),
             })
+    }
+
+    pub fn get_at(&self, distance: usize, name: &str) -> Result<T> {
+        self.ancestor(distance)?.get(name)
+    }
+
+    fn ancestor(&self, distance: usize) -> Result<&Scope<T>> {
+        let mut parent = self;
+
+        for _i in 0..distance {
+            parent = parent
+            .parent.as_ref()
+            .ok_or::<LoxErr>(LoxErr::Internal {
+                message: "Error with ancestor depth! Expected to find some ancestor scope when resolving variable".to_owned(),
+            })
+            .map(|el| el.as_ref())?;
+        }
+
+        Ok(parent)
     }
 }
 

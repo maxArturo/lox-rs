@@ -1,35 +1,41 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 use std::vec;
 
 use log::{debug, trace};
 
-use crate::lox::entities::expr::ExprFunction;
+use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::Func;
 
 use super::super::entities::eval::Interpreter;
 use super::super::entities::func::{Function, NativeFunction};
 use super::super::entities::stmt::{StmtFun, StmtReturn};
 use super::super::entities::{
-    expr::{ExprAssign, ExprGrouping},
+    expr::ExprGrouping,
     stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
+use super::visitor::{ExprVisitor, StmtVisitor};
 
 use loxrs_env::Scope;
 use loxrs_types::{LoxErr, Result};
 
 impl Interpreter {
     pub fn new() -> Self {
+        let scope = Self::setup_native_fns();
         Self {
-            scope: Self::setup_native_fns(),
+            scope: Rc::clone(&scope),
+            globals: Rc::clone(&scope),
+            locals: RefCell::new(HashMap::new()),
         }
     }
 
     fn setup_native_fns() -> Rc<Scope<Value>> {
         let scope = Rc::new(Scope::new());
 
-        scope.define_global(
+        scope.define(
             "time",
             Value::Func(Func::Native(NativeFunction::new(
                 |_args, _env| Ok(Value::String(format!("{:?}", Instant::now()))),
@@ -42,8 +48,8 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
-        trace!("set of statements: {:?}", stmts);
         for s in stmts {
+            trace!("evaluating statement:\n{:#?}", s);
             self.exec_stmt(s)?;
         }
         Ok(())
@@ -51,6 +57,20 @@ impl Interpreter {
 
     pub fn scope(&self) -> Rc<Scope<Value>> {
         Rc::clone(&self.scope)
+    }
+
+    fn lookup_var(&self, name: &str, expr: &Expr) -> Result<Value> {
+        trace!(
+            "[lookup_var] looking up {} in {:?}",
+            expr,
+            self.locals.borrow()
+        );
+
+        if let Some(distance) = self.locals.borrow().get(expr) {
+            trace!("[lookup_var] found {} with value of {}", expr, distance);
+            return self.scope.get_at(*distance, name);
+        }
+        self.globals.get(name)
     }
 
     fn truthy(&self, val: &Value) -> Value {
@@ -75,23 +95,7 @@ impl Interpreter {
     }
 }
 
-impl Interpreter {
-    fn eval(&mut self, expr: &Expr) -> Result<Value> {
-        match expr {
-            Expr::Unary(unary) => self.unary(&unary.right, &unary.operator),
-            Expr::Binary(binary) => self.binary(&binary.left, &binary.right, &binary.operator),
-            Expr::Logical(logical) => {
-                self.logical(&logical.left, &logical.right, &logical.operator)
-            }
-            Expr::Grouping(grouping) => self.grouping(grouping),
-            Expr::Function(func) => self.func(func),
-            Expr::Literal(lit) => self.literal(lit),
-            Expr::Var(var) => self.var(var),
-            Expr::Assign(token, expr) => self.assign(token, expr),
-            Expr::Call(call) => self.call(&call.callee, &call.args),
-        }
-    }
-
+impl ExprVisitor<Value> for Interpreter {
     fn func(&mut self, def: &ExprFunction) -> Result<Value> {
         let scope = self.scope();
 
@@ -201,17 +205,48 @@ impl Interpreter {
         self.eval(&expression.expression)
     }
 
-    fn var(&self, expression: &Token) -> Result<Value> {
-        let str = expression.extract_identifier_str()?;
-        let res = self.scope.get(str)?;
-        Ok(res.clone())
+    fn var(&self, expression: &Expr) -> Result<Value> {
+        if let ExprKind::Var(var) = &expression.kind {
+            let str = var.extract_identifier_str()?;
+
+            let res = self.lookup_var(str, expression)?;
+            return Ok(res.clone());
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `var` code path, programmer error",
+                expression
+            ),
+        })
     }
 
-    fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
-        let val = self.eval(&expr.expression)?;
-        self.scope
-            .assign(token.extract_identifier_str()?, val.clone())?;
-        Ok(val)
+    fn assign(&mut self, expr: &Expr) -> Result<Value> {
+        if let ExprKind::Assign(expr_assign) = &expr.kind {
+            let val = self.eval(&expr_assign.expression)?;
+            let var_name = expr_assign.name.extract_identifier_str()?;
+
+            if let Some(distance) = self.locals.borrow().get(expr) {
+                self.scope.assign_at(*distance, var_name, val.clone())?;
+            } else if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
+                // TODO missing tests here
+                return Err(LoxErr::Eval {
+                    expr: var_name.to_owned(),
+                    message: "Not allowed to override native function".to_owned(),
+                });
+            } else {
+                self.globals.define(var_name, val.clone());
+            }
+
+            return Ok(val);
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `assign` code path, programmer error",
+                expr
+            ),
+        })
     }
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
@@ -270,7 +305,7 @@ impl Interpreter {
     }
 }
 
-impl Interpreter {
+impl StmtVisitor for Interpreter {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
@@ -306,9 +341,10 @@ impl Interpreter {
     }
 
     fn var_stmt(&mut self, var: &StmtVar) -> Result<Option<Value>> {
-        trace!("var statement: {:?}", var);
         let val = var.expr.as_ref().map_or(Ok(Value::Nil), |e| self.eval(e))?;
         self.scope.define(var.token.extract_identifier_str()?, val);
+
+        trace!("var statement {:?} defined in scope: {}", var, self.scope);
         Ok(None)
     }
 
@@ -323,17 +359,17 @@ impl Interpreter {
         Ok(None)
     }
 
-    pub fn block_stmt(
-        &mut self,
-        block: &StmtBlock,
-        scope: Rc<Scope<Value>>,
-    ) -> Result<Option<Value>> {
+    fn block_stmt(&mut self, block: &StmtBlock, scope: Rc<Scope<Value>>) -> Result<Option<Value>> {
+        let new_scope = Scope::from_parent(scope);
+
+        trace!("block statement: {:?}", block);
         let prev_scope = Rc::clone(&self.scope);
-        self.scope = scope;
+
+        self.scope = new_scope;
+        trace!("new scope for block statement: {}", self.scope);
 
         let mut res = Ok(None);
 
-        trace!("block statement: {:?}", block);
         for stmt in block.stmts.as_slice() {
             if let Some(val) = self.exec_stmt(stmt)? {
                 res = Ok(Some(val));

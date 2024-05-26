@@ -14,6 +14,9 @@ pub enum LoxErr {
     Internal {
         message: String,
     },
+    Resolve {
+        message: String,
+    },
     Parse {
         token: String,
         line: String,
@@ -48,6 +51,8 @@ impl fmt::Display for LoxErr {
                 }
                 Self::Internal { message } => format!("Internal program error: {}", message),
                 Self::Undefined { message } => format!("Undefined error: {}", message),
+
+                Self::Resolve { message } => format!("Variable resolving error: {}", message),
             }
         )
     }
