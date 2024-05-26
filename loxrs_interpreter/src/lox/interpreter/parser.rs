@@ -381,10 +381,10 @@ impl Parser {
 
             match or_expr.kind {
                 ExprKind::Var(token) => {
-                    return Ok(Expr::new(ExprKind::Assign(
-                        token,
-                        Box::new(ExprAssign { expression: val }),
-                    )))
+                    return Ok(Expr::new(ExprKind::Assign(Box::new(ExprAssign {
+                        name: token,
+                        expression: val,
+                    }))))
                 }
                 _ => {
                     // explicitly not returning the error, but displaying it

@@ -13,7 +13,7 @@ use super::super::entities::eval::Interpreter;
 use super::super::entities::func::{Function, NativeFunction};
 use super::super::entities::stmt::{StmtFun, StmtReturn};
 use super::super::entities::{
-    expr::{ExprAssign, ExprGrouping},
+    expr::ExprGrouping,
     stmt::{StmtBlock, StmtExpr, StmtIf, StmtPrint, StmtVar, StmtWhile},
     Expr, Literal, Stmt, Token, TokenType, Value,
 };
@@ -48,8 +48,8 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
-        trace!("set of statements: {:?}", stmts);
         for s in stmts {
+            trace!("evaluating statement:\n{:#?}", s);
             self.exec_stmt(s)?;
         }
         Ok(())
@@ -221,23 +221,32 @@ impl ExprVisitor<Value> for Interpreter {
         })
     }
 
-    fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<Value> {
-        let val = self.eval(&expr.expression)?;
-        let var_name = token.extract_identifier_str()?;
+    fn assign(&mut self, expr: &Expr) -> Result<Value> {
+        if let ExprKind::Assign(expr_assign) = &expr.kind {
+            let val = self.eval(&expr_assign.expression)?;
+            let var_name = expr_assign.name.extract_identifier_str()?;
 
-        if let Some(distance) = self.locals.borrow().get(&expr.expression) {
-            self.scope.assign_at(*distance, var_name, val.clone())?;
-        } else if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
-            // TODO missing tests here
-            return Err(LoxErr::Eval {
-                expr: var_name.to_owned(),
-                message: "Not allowed to override native function".to_owned(),
-            });
-        } else {
-            self.globals.define(var_name, val.clone());
+            if let Some(distance) = self.locals.borrow().get(expr) {
+                self.scope.assign_at(*distance, var_name, val.clone())?;
+            } else if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
+                // TODO missing tests here
+                return Err(LoxErr::Eval {
+                    expr: var_name.to_owned(),
+                    message: "Not allowed to override native function".to_owned(),
+                });
+            } else {
+                self.globals.define(var_name, val.clone());
+            }
+
+            return Ok(val);
         }
 
-        Ok(val)
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `assign` code path, programmer error",
+                expr
+            ),
+        })
     }
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
@@ -304,7 +313,7 @@ impl StmtVisitor for Interpreter {
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
             Stmt::Var(stmt) => self.var_stmt(stmt),
-            Stmt::Block(stmt) => self.block_stmt(stmt, Scope::from_parent(self.scope())),
+            Stmt::Block(stmt) => self.block_stmt(stmt, self.scope()),
             Stmt::If(stmt) => self.if_stmt(stmt),
             Stmt::While(stmt) => self.while_stmt(stmt),
         };
@@ -351,10 +360,12 @@ impl StmtVisitor for Interpreter {
     }
 
     fn block_stmt(&mut self, block: &StmtBlock, scope: Rc<Scope<Value>>) -> Result<Option<Value>> {
+        let new_scope = Scope::from_parent(scope);
+
         trace!("block statement: {:?}", block);
         let prev_scope = Rc::clone(&self.scope);
 
-        self.scope = scope;
+        self.scope = new_scope;
         trace!("new scope for block statement: {}", self.scope);
 
         let mut res = Ok(None);

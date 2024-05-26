@@ -1,5 +1,3 @@
-// y combinator in lox
-
 var why = fun (fn) { 
   return (
     fun (maker) {

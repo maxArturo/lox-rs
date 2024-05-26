@@ -18,8 +18,8 @@ counter(); // "2".
 fun scope(a) {
   print "inside `scope`, before assignment this is a: " + a;
   var a = "local";
-// here we expect a shadow occurrence
-  print "inside `scope`, this is a: " + a;
+  // here we expect a shadow occurrence
+  print "inside `scope`, after assignment this is a: " + a;
 }
 
 var a = "something";

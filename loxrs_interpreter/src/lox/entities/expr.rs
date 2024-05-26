@@ -56,7 +56,7 @@ pub enum ExprKind {
     Grouping(Box<ExprGrouping>),
     Function(Box<ExprFunction>),
     Var(Token),
-    Assign(Token, Box<ExprAssign>),
+    Assign(Box<ExprAssign>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,18 +67,23 @@ pub struct ExprFunction {
 
 impl Display for ExprFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let params: Vec<&str> = self
-            .params
-            .iter()
-            .map(|el| el.extract_identifier_str().unwrap())
-            .collect();
+        f.debug_struct("[ExprFunction]")
+            .field("params", &self.params)
+            .field("body", &self.body)
+            .finish()
 
-        write!(f, "Expr[Function]")?;
-        if !params.is_empty() {
-            write!(f, "params: [{:?}]", params)?;
-        }
-
-        write!(f, "body: {}", self.body)
+        // let params: Vec<&str> = self
+        //     .params
+        //     .iter()
+        //     .map(|el| el.extract_identifier_str().unwrap())
+        //     .collect();
+        //
+        // write!(f, "Expr[Function] ")?;
+        // if !params.is_empty() {
+        //     write!(f, "params: [{:?}] ", params)?;
+        // }
+        //
+        // write!(f, "body:\n  {}", self.body)
     }
 }
 
@@ -91,6 +96,7 @@ pub struct ExprCall {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprAssign {
+    pub name: Token,
     pub expression: Expr,
 }
 
@@ -150,7 +156,8 @@ impl fmt::Display for ExprKind {
                     var.line, var.column, t
                 )
                 .to_string()),
-                Self::Assign(token, expr) => format!("token: {}, expr: {}", token, expr.expression),
+                Self::Assign(assign) =>
+                    format!("target: {}, expr: {}", assign.name, assign.expression),
             }
         )
     }

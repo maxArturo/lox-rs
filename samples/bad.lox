@@ -1,0 +1,8 @@
+fun bad() {
+  var a;
+}
+
+print "he y you";
+return "at top level";
+
+

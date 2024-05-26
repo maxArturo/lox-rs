@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::fmt::Display;
 use std::{collections::HashMap, rc::Rc};
 
-use crate::lox::entities::expr::ExprKind;
+use crate::lox::entities::expr::{ExprFunction, ExprKind};
+use crate::lox::entities::func::FuncType;
 use crate::lox::entities::Expr;
 use crate::lox::entities::{eval::Interpreter, Token};
 
@@ -22,6 +23,7 @@ use loxrs_types::{LoxErr, Result};
 pub struct Resolver {
     interpreter: Rc<RefCell<Interpreter>>,
     stack: Vec<HashMap<String, bool>>,
+    curr_function: FuncType,
 }
 
 impl Display for Resolver {
@@ -44,10 +46,20 @@ impl Resolver {
         Self {
             interpreter,
             stack: vec![],
+            curr_function: FuncType::None,
         }
     }
 
     fn resolve_fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
+        trace!(
+            "creating stack from fun stmt: {} with stack: {}",
+            stmt,
+            self,
+        );
+
+        let prev_function_type = self.curr_function.clone();
+        self.curr_function = FuncType::Function;
+
         self.begin_scope();
 
         for param in &stmt.def.params {
@@ -57,11 +69,23 @@ impl Resolver {
         self.resolve_stmt(&Stmt::Block(stmt.def.body.to_owned()))?;
 
         self.end_scope();
+
+        self.curr_function = prev_function_type;
         Ok(None)
     }
 
     fn declare(&mut self, name: &Token) -> Result<Option<Value>> {
         if let Some(last) = self.stack.last_mut() {
+            let name_val = name.extract_identifier_str()?;
+            if last.get(name_val).is_some() {
+                return Err(LoxErr::Resolve {
+                    message: format!(
+                        "Variable `{}` already declared in current scope\n in line: {}, col: {}",
+                        name_val, name.line, name.column
+                    ),
+                });
+            }
+
             last.insert(name.extract_identifier_str()?.to_owned(), false);
         }
 
@@ -150,7 +174,15 @@ impl StmtVisitor for Resolver {
     }
 
     fn return_stmt(&mut self, stmt: &StmtReturn) -> Result<Option<Value>> {
-        self.resolve_expr(&stmt.val)
+        match self.curr_function {
+            FuncType::None => Err(LoxErr::Resolve {
+                message: format!(
+                    "Can't return from non-function scope\n at line: {}, col: {}",
+                    stmt.keyword.line, stmt.keyword.column,
+                ),
+            }),
+            FuncType::Function => self.resolve_expr(&stmt.val),
+        }
     }
 
     fn var_stmt(&mut self, var: &StmtVar) -> Result<Option<Value>> {
@@ -174,9 +206,14 @@ impl StmtVisitor for Resolver {
         block: &StmtBlock,
         _scope: Rc<loxrs_env::Scope<Value>>,
     ) -> Result<Option<Value>> {
+        trace!(
+            "creating stack from block stmt: {} with stack: {}",
+            block,
+            self,
+        );
         self.begin_scope();
 
-        trace!("traversing block with this stack: {}", &self);
+        trace!("traversing block with this new stack: {}", &self);
         self.resolve(&block.stmts)?;
 
         trace!("done traversing block! ejecting scope... {}", &self);
@@ -202,10 +239,25 @@ impl StmtVisitor for Resolver {
 }
 
 impl ExprVisitor<Option<Value>> for Resolver {
-    fn func(&mut self, def: &crate::lox::entities::expr::ExprFunction) -> Result<Option<Value>> {
+    fn func(&mut self, def: &ExprFunction) -> Result<Option<Value>> {
+        let prev_function_type = self.curr_function.clone();
+        self.curr_function = FuncType::Function;
+
+        self.begin_scope();
+
+        for param in &def.params {
+            self.declare(param)?;
+            self.define(param)?;
+        }
+
         self.resolve_stmt(&Stmt::Block(StmtBlock {
             stmts: def.body.stmts.to_owned(),
-        }))
+        }))?;
+
+        self.end_scope();
+
+        self.curr_function = prev_function_type;
+        Ok(None)
     }
 
     fn literal(&mut self, _literal: &crate::lox::entities::Literal) -> Result<Option<Value>> {
@@ -238,7 +290,8 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 .is_some_and(|last| last.get(name).is_some_and(|el| !*el))
             {
                 return Err(LoxErr::Resolve {
-                    message: format!("Can't read local variable {} from its own initalizer", name),
+                    message: format!("Can't read local variable {} from its own initalizer\n at line: {}, col: {}", name, var.line, 
+                        var.column),
                 });
             }
 
@@ -255,22 +308,6 @@ impl ExprVisitor<Option<Value>> for Resolver {
         })
     }
 
-    fn assign(
-        &mut self,
-        token: &Token,
-        expr: &crate::lox::entities::expr::ExprAssign,
-    ) -> Result<Option<Value>> {
-        trace!("assign expr: Token: {}, expr: {}", token, expr.expression);
-        self.resolve_expr(&expr.expression)?;
-
-        trace!(
-            "resolving to locals from assign expr...\nexpr: Token: {}, expr: {}",
-            token,
-            expr.expression
-        );
-        self.resolve_local(&expr.expression, token.extract_identifier_str()?)
-    }
-
     fn logical(&mut self, left: &Expr, right: &Expr, _operator: &Token) -> Result<Option<Value>> {
         self.resolve_expr(left)?;
         self.resolve_expr(right)
@@ -282,5 +319,29 @@ impl ExprVisitor<Option<Value>> for Resolver {
             self.resolve_expr(expr)?;
         }
         Ok(None)
+    }
+
+    fn assign(&mut self, expr: &Expr) -> Result<Option<Value>> {
+        if let ExprKind::Assign(expr_assign) = &expr.kind {
+            trace!(
+                "assign expr: name: {}, expr: {}",
+                expr_assign.name,
+                expr_assign.expression
+            );
+            self.resolve_expr(&expr_assign.expression)?;
+            trace!(
+                "resolving to locals from assign expr...\nname: Token: {}, expr: {}",
+                expr_assign.name,
+                expr
+            );
+            return self.resolve_local(expr, expr_assign.name.extract_identifier_str()?);
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `assign` code path, programmer error",
+                expr
+            ),
+        })
     }
 }

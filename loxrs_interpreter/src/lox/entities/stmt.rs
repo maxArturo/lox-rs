@@ -61,26 +61,7 @@ pub struct StmtIf {
     pub then: StmtB,
     pub else_stmt: Option<StmtB>,
 }
-//
-// impl Display for Stmt {
-//     fn fmt(&self, f: &mut std::Formatter<'_>) -> std::Result {
-//         write!(
-//             f,
-//             "{}",
-//             match self {
-//                 Self::Fun(_) => "[Stmt]Fun",
-//                 Self::Return(_) => "[Stmt]Return",
-//                 Self::Expr(_) => "[Stmt]Expr",
-//                 Self::Print(_) => "[Stmt]Print",
-//                 Self::Var(_) => "[Stmt]Var",
-//                 Self::Block(_) => "[Stmt]Block",
-//                 Self::If(_) => "[Stmt]If",
-//                 Self::While(_) => "[Stmt]While",
-//             }
-//         )
-//     }
-// }
-//
+
 impl Display for Stmt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -104,7 +85,10 @@ impl Display for StmtReturn {
 
 impl Display for StmtFun {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.name, self.def)
+        f.debug_struct("StmtFun")
+            .field("name", &self.name)
+            .field("def", &self.def)
+            .finish()
     }
 }
 
@@ -131,10 +115,8 @@ impl Display for StmtVar {
 
 impl Display for StmtBlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        for stmt in &self.stmts {
-            writeln!(f, "{}", stmt)?;
-        }
-        Ok(())
+        f.debug_struct("StmtBlock").finish()?;
+        f.debug_list().entries(self.stmts.iter()).finish()
     }
 }
 

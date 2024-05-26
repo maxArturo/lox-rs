@@ -1,7 +1,7 @@
 use crate::lox::entities::expr::ExprKind;
 
 use super::super::entities::{
-    expr::{ExprAssign, ExprFunction, ExprGrouping},
+    expr::{ExprFunction, ExprGrouping},
     stmt::{StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile},
     Expr, Literal, Stmt, Token, Value,
 };
@@ -42,7 +42,7 @@ pub trait ExprVisitor<T> {
             ExprKind::Function(func) => self.func(func.as_ref()),
             ExprKind::Literal(lit) => self.literal(lit.as_ref()),
             ExprKind::Var(_) => self.var(expr),
-            ExprKind::Assign(token, expr) => self.assign(token, expr.as_ref()),
+            ExprKind::Assign(_) => self.assign(expr),
             ExprKind::Call(call) => self.call(&call.callee, &call.args),
         }
     }
@@ -59,7 +59,7 @@ pub trait ExprVisitor<T> {
 
     fn var(&self, expression: &Expr) -> Result<T>;
 
-    fn assign(&mut self, token: &Token, expr: &ExprAssign) -> Result<T>;
+    fn assign(&mut self, expr: &Expr) -> Result<T>;
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
 

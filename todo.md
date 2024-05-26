@@ -22,9 +22,8 @@ attempt to subtract with overflow
 - [x] add `rustfmt` gh action for the project
 - [x] ensure env cloning is correct and performant
 - [x] use single source of truth for named function declaration and IIFE
-- [ ] prevent reassignment of shadow variables
+- [x] prevent reassignment of shadow variables
+- [x] working variable resolution pass
+- [x] error on reassigned variables within same scope
+- [x] error on return statements outside of function scope
 
-
-Latest bug: 
-
-- It has to do with how I fetch assignment and variable declarations. When I run assignment, I have a token and an expression. But i need to pass that into the map which uses a UUID to map an expression back into what thing its referring to... that's the wole bug.
