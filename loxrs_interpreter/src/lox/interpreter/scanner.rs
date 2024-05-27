@@ -309,7 +309,6 @@ impl Scanner {
 }
 
 pub trait Scan {
-    fn new(source: &str) -> Self;
     fn scan(&mut self) -> Result<Vec<Token>, Vec<LoxErr>>;
 }
 
@@ -323,21 +322,6 @@ impl Scan for Scanner {
         match &self.errors {
             Some(errs) => Err(errs.clone()),
             None => Ok(self.tokens.clone()),
-        }
-    }
-
-    fn new(source: &str) -> Self {
-        let chars = source.chars().collect();
-        Self {
-            source: source.to_string(),
-            chars,
-            start: 0,
-            current: 0,
-            line: 1,
-            line_start: 0,
-            col: 1,
-            errors: None,
-            tokens: Vec::new(),
         }
     }
 }
