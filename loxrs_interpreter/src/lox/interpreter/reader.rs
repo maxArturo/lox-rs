@@ -16,7 +16,11 @@ pub fn run_file(filename: &String) {
     match fs::read_to_string(filename) {
         Ok(str) => {
             let interpreter = Rc::new(RefCell::new(Interpreter::new()));
-            repl(interpreter, &str);
+            let _ = repl(interpreter, &str).inspect_err(|errs| {
+                for e in errs {
+                    error!("{:?}", e);
+                }
+            });
         }
         Err(e) => {
             error!("Error reading file: {e}");
@@ -45,16 +49,23 @@ pub fn run_prompt() {
                 continue;
             }
         };
-        repl(Rc::clone(&interpreter), &statement);
+        let _ = repl(Rc::clone(&interpreter), &statement).inspect_err(|errs| {
+            for e in errs {
+                error!("{:?}", e);
+            }
+        });
     }
 }
 
-fn repl(interpreter: Rc<RefCell<Interpreter>>, str: &str) {
-    let mut resolver = Resolver::new(Rc::clone(&interpreter));
-
-    let _ = scan_parse(str)
-        .and_then(|stmts| {
-            resolver.resolve(&stmts).map_err(|e| vec![e]).and_then(|_| {
+pub fn repl(
+    interpreter: Rc<RefCell<Interpreter>>,
+    str: &str,
+) -> Result<(), Vec<loxrs_types::LoxErr>> {
+    scan_parse(str).and_then(|stmts| {
+        Resolver::new(Rc::clone(&interpreter))
+            .resolve(&stmts)
+            .map_err(|e| vec![e])
+            .and_then(|_| {
                 trace!(
                     "post resolver Interpreter: {}",
                     interpreter.as_ref().borrow()
@@ -66,10 +77,5 @@ fn repl(interpreter: Rc<RefCell<Interpreter>>, str: &str) {
                     .interpret(&stmts[..])
                     .map_err(|e| vec![e])
             })
-        })
-        .inspect_err(|errs| {
-            for e in errs {
-                error!("{:?}", e);
-            }
-        });
+    })
 }

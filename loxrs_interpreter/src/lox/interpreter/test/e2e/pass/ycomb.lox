@@ -1,0 +1,30 @@
+var why = fun (fn) { 
+  return (
+    fun (maker) {
+      // manual version of two args, no destructuring here *yet*
+      return fun (first) {
+        // same here
+        return fn(maker(maker), first);
+      };
+    }
+  )(
+    fun (maker) {
+      return fun (first) {
+        return fn(maker(maker), first);
+      };
+    }
+  );
+};
+
+
+var fact = why(fun (myself, m) {
+    if (m == 0) {
+      return 1;
+    } else {
+      return m * myself(m - 1);
+    }
+});
+
+print fact;
+print "y combinator answer for fact is: ";
+print fact(4);
