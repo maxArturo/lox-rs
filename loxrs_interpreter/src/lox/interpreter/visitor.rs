@@ -57,7 +57,7 @@ pub trait ExprVisitor<T> {
 
     fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
 
-    fn var(&self, expression: &Expr) -> Result<T>;
+    fn var(&mut self, expression: &Expr) -> Result<T>;
 
     fn assign(&mut self, expr: &Expr) -> Result<T>;
 

@@ -1,0 +1,9 @@
+fun bad() {
+  var a;
+  var b;
+  {
+    b = 33;
+  }
+}
+
+print a;

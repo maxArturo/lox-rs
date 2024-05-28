@@ -12,9 +12,9 @@ fn traverse<F: FnOnce(Rc<RefCell<Interpreter>>, &str) -> bool + Copy>(
     inspect: F,
 ) {
     for file in fs::read_dir(source).unwrap() {
+        println!("Testing file: {:?}", file);
         let interpreter = Rc::new(RefCell::new(Interpreter::new()));
         let str = fs::read_to_string(file.unwrap().path()).unwrap();
-
         assert!(&inspect(interpreter, &str));
     }
 }
@@ -26,6 +26,10 @@ fn e2e() {
     cwd.pop();
     let folder = cwd.join(prefix);
 
-    traverse(&folder.join("pass/"), |i, input| repl(i, input).is_ok());
+    traverse(&folder.join("pass/"), |i, input| {
+        let res = repl(i, input);
+        println!("testing output: {:?}", &res);
+        res.is_ok()
+    });
     traverse(&folder.join("fail/"), |i, input| repl(i, input).is_err());
 }

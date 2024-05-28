@@ -205,7 +205,7 @@ impl ExprVisitor<Value> for Interpreter {
         self.eval(&expression.expression)
     }
 
-    fn var(&self, expression: &Expr) -> Result<Value> {
+    fn var(&mut self, expression: &Expr) -> Result<Value> {
         if let ExprKind::Var(var) = &expression.kind {
             let str = var.extract_identifier_str()?;
 

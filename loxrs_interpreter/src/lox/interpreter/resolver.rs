@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
@@ -19,10 +19,36 @@ use log::trace;
 use loxrs_env::Scope;
 use loxrs_types::{LoxErr, Result};
 
+#[derive(Default, Debug, Clone, PartialEq)]
+enum VarStatus {
+    #[default]
+    Declared,
+    Defined,
+    Assigned,
+}
+
+impl Display for VarStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Declared => "declared",
+                Self::Defined => "defined",
+                Self::Assigned => "assigned",
+            }
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct Resolver {
     interpreter: Rc<RefCell<Interpreter>>,
-    stack: Vec<HashMap<String, bool>>,
+    // TODO here this needs to be changed into an enum
+    // and on `assign` it needs to be set to assigned
+    // when we pop a scope, any unassigned vars should be
+    // an error
+    stack: Vec<HashMap<String, VarStatus>>,
     curr_function: FuncType,
 }
 
@@ -65,10 +91,11 @@ impl Resolver {
         for param in &stmt.def.params {
             self.declare(param)?;
             self.define(param)?;
+            self.assign(param)?;
         }
         self.resolve_stmt(&Stmt::Block(stmt.def.body.to_owned()))?;
 
-        self.end_scope();
+        self.end_scope()?;
 
         self.curr_function = prev_function_type;
         Ok(None)
@@ -86,15 +113,47 @@ impl Resolver {
                 });
             }
 
-            last.insert(name.extract_identifier_str()?.to_owned(), false);
+            last.insert(
+                name.extract_identifier_str()?.to_owned(),
+                VarStatus::default(),
+            );
         }
 
         Ok(None)
     }
 
     fn define(&mut self, name: &Token) -> Result<Option<Value>> {
+        let var_name = name.extract_identifier_str()?;
         if let Some(last) = self.stack.last_mut() {
-            last.insert(name.extract_identifier_str()?.to_owned(), true);
+            if !last.contains_key(var_name) {
+                return Err(LoxErr::Resolve {
+                            message: format!("Can't define local variable {} before it is declared\n at line: {}, col: {}", 
+                                var_name, name.line,
+                                name.column),
+                        });
+            }
+            last.insert(
+                name.extract_identifier_str()?.to_owned(),
+                VarStatus::Defined,
+            );
+        }
+
+        Ok(None)
+    }
+
+    fn assign(&mut self, name: &Token) -> Result<Option<Value>> {
+        let var_name = name.extract_identifier_str()?;
+        if let Some(last) = self.stack.last_mut() {
+            if !last
+                .get(var_name)
+                .is_some_and(|el| *el == VarStatus::Defined)
+            {
+                return Err(LoxErr::Resolve {
+                    message: format!("Can't assign local variable {} before it is defined\n at line: {}, col: {}", var_name, name.line,
+                        name.column),
+                });
+            }
+            last.insert(var_name.to_owned(), VarStatus::Assigned);
         }
 
         Ok(None)
@@ -104,8 +163,17 @@ impl Resolver {
         self.stack.push(HashMap::new());
     }
 
-    fn end_scope(&mut self) {
-        self.stack.pop();
+    fn end_scope(&mut self) -> Result<Option<Value>> {
+        if let Some(stack) = self.stack.pop() {
+            for (k, v) in stack {
+                if v != VarStatus::Assigned {
+                    return Err(LoxErr::Resolve {
+                        message: format!("Variable `{}` not assigned", k),
+                    });
+                }
+            }
+        }
+        Ok(None)
     }
 
     pub fn resolve(&mut self, stmts: &Vec<Stmt>) -> Result<Option<Value>> {
@@ -125,9 +193,9 @@ impl Resolver {
         Ok(None)
     }
 
-    fn resolve_local(&self, expr: &Expr, name: &str) -> Result<Option<Value>> {
+    fn resolve_local(&mut self, expr: &Expr, name: &str, assign: bool) -> Result<Option<Value>> {
         trace!("resolving to locals: {} with stack: {}", expr, self,);
-        for (idx, scope) in self.stack.iter().rev().enumerate() {
+        for (idx, scope) in self.stack.iter_mut().rev().enumerate() {
             trace!(
                 "searching for {} within stack no: {} and curr stack: {:?}",
                 expr,
@@ -137,6 +205,10 @@ impl Resolver {
             if scope.contains_key(name) {
                 trace!("found! resolving {} within stack no.: {}", expr, idx,);
                 self.interpreter.as_ref().borrow_mut().resolve(expr, idx);
+                if assign {
+                    trace!("Also setting {} to assigned", name);
+                    scope.insert(name.to_owned(), VarStatus::Assigned);
+                }
                 return Ok(None);
             }
         }
@@ -189,6 +261,10 @@ impl StmtVisitor for Resolver {
         self.declare(&var.token)?;
         if let Some(expr) = &var.expr {
             self.resolve_expr(expr)?;
+            self.define(&var.token)?;
+            self.assign(&var.token)?;
+
+            return Ok(None);
         }
 
         self.define(&var.token)?;
@@ -198,6 +274,7 @@ impl StmtVisitor for Resolver {
     fn fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
+        self.assign(&stmt.name)?;
         self.resolve_fun_stmt(stmt)
     }
 
@@ -217,7 +294,7 @@ impl StmtVisitor for Resolver {
         self.resolve(&block.stmts)?;
 
         trace!("done traversing block! ejecting scope... {}", &self);
-        self.end_scope();
+        self.end_scope()?;
 
         Ok(None)
     }
@@ -248,13 +325,14 @@ impl ExprVisitor<Option<Value>> for Resolver {
         for param in &def.params {
             self.declare(param)?;
             self.define(param)?;
+            self.assign(param)?;
         }
 
         self.resolve_stmt(&Stmt::Block(StmtBlock {
             stmts: def.body.stmts.to_owned(),
         }))?;
 
-        self.end_scope();
+        self.end_scope()?;
 
         self.curr_function = prev_function_type;
         Ok(None)
@@ -280,14 +358,14 @@ impl ExprVisitor<Option<Value>> for Resolver {
         self.resolve_expr(&expression.expression)
     }
 
-    fn var(&self, expression: &Expr) -> Result<Option<Value>> {
+    fn var(&mut self, expression: &Expr) -> Result<Option<Value>> {
         if let ExprKind::Var(var) = &expression.kind {
             trace!("var expr: {}", var);
             let name = var.extract_identifier_str()?;
             if self
                 .stack
                 .last()
-                .is_some_and(|last| last.get(name).is_some_and(|el| !*el))
+                .is_some_and(|last| last.get(name).is_some_and(|el| *el == VarStatus::Declared))
             {
                 return Err(LoxErr::Resolve {
                     message: format!("Can't read local variable {} from its own initalizer\n at line: {}, col: {}", name, var.line, 
@@ -296,7 +374,7 @@ impl ExprVisitor<Option<Value>> for Resolver {
             }
 
             trace!("resolving to locals from var expr: {}", var);
-            self.resolve_local(expression, name)?;
+            self.resolve_local(expression, name, false)?;
             return Ok(None);
         }
 
@@ -334,7 +412,8 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 expr_assign.name,
                 expr
             );
-            return self.resolve_local(expr, expr_assign.name.extract_identifier_str()?);
+            // TODO need to set assigned here too
+            return self.resolve_local(expr, expr_assign.name.extract_identifier_str()?, true);
         }
 
         Err(LoxErr::Internal {
