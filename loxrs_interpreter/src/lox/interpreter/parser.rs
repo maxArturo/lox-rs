@@ -621,7 +621,7 @@ impl Parser {
                     });
                 }
                 params.push(
-                    self.consume(&TokenType::Identifier, "expected parameer name")?
+                    self.consume(&TokenType::Identifier, "expected parameter name")?
                         .clone(),
                 );
 
