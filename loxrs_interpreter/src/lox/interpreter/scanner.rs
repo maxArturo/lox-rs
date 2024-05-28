@@ -2,7 +2,7 @@ use std::{f64, usize};
 
 use crate::lox::entities::{Literal, Stmt, Token, TokenType};
 use crate::lox::interpreter::parser;
-use log::debug;
+use log::{debug, trace};
 
 use loxrs_types::{LoxErr, Result};
 
@@ -138,7 +138,7 @@ impl Scanner {
     }
 
     fn identifier(&mut self) {
-        while self.peek().is_alphanumeric() {
+        while self.peek().is_ascii_alphanumeric() || self.peek() == '_' {
             self.advance();
         }
 
@@ -309,7 +309,6 @@ impl Scanner {
 }
 
 pub trait Scan {
-    fn new(source: &str) -> Self;
     fn scan(&mut self) -> Result<Vec<Token>, Vec<LoxErr>>;
 }
 
@@ -325,21 +324,6 @@ impl Scan for Scanner {
             None => Ok(self.tokens.clone()),
         }
     }
-
-    fn new(source: &str) -> Self {
-        let chars = source.chars().collect();
-        Self {
-            source: source.to_string(),
-            chars,
-            start: 0,
-            current: 0,
-            line: 1,
-            line_start: 0,
-            col: 1,
-            errors: None,
-            tokens: Vec::new(),
-        }
-    }
 }
 
 pub fn scan_parse(raw_s: &str) -> Result<Vec<Stmt>, Vec<LoxErr>> {
@@ -348,6 +332,7 @@ pub fn scan_parse(raw_s: &str) -> Result<Vec<Stmt>, Vec<LoxErr>> {
 
     let tokens = scanner.scan()?;
 
+    trace!("here are tokens: \n{:#?}", tokens);
     let mut parser = parser::Parser::new(tokens);
 
     parser.parse().map_err(|e| vec![e])

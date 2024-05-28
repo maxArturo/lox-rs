@@ -71,19 +71,6 @@ impl Display for ExprFunction {
             .field("params", &self.params)
             .field("body", &self.body)
             .finish()
-
-        // let params: Vec<&str> = self
-        //     .params
-        //     .iter()
-        //     .map(|el| el.extract_identifier_str().unwrap())
-        //     .collect();
-        //
-        // write!(f, "Expr[Function] ")?;
-        // if !params.is_empty() {
-        //     write!(f, "params: [{:?}] ", params)?;
-        // }
-        //
-        // write!(f, "body:\n  {}", self.body)
     }
 }
 
@@ -131,33 +118,36 @@ impl fmt::Display for ExprKind {
             f,
             "{}",
             match self {
-                Self::Call(call) => {
+                Self::Call(call) => format!(
+                    "[<call> {}]",
                     parenthesize(&call.callee.to_string(), call.args.iter().collect())
-                }
-                Self::Grouping(grouping) => {
-                    parenthesize("grouping", vec![&grouping.expression])
-                }
-                Self::Function(func) => {
-                    parenthesize("<function>", func.params.iter().collect())
-                }
-                Self::Unary(unary) =>
-                    parenthesize(&unary.operator.token_type.to_string(), vec![&unary.right]),
-                Self::Binary(binary) => parenthesize(
-                    &binary.operator.token_type.to_string(),
-                    vec![&binary.left, &binary.right]
                 ),
-                Self::Logical(logical) => parenthesize(
+                Self::Grouping(grouping) => parenthesize("<grouping>", vec![&grouping.expression]),
+                Self::Function(func) => parenthesize("<function>", func.params.iter().collect()),
+                Self::Unary(unary) => format!(
+                    "[<unary> token: {}, expr: {}]",
+                    &unary.operator.token_type, &unary.right
+                ),
+                Self::Binary(binary) => format!(
+                    "[<binary> operator: {}, left: {} right: {}]",
+                    &binary.operator.token_type, &binary.left, &binary.right
+                ),
+                Self::Logical(logical) => format!(
+                    "[<logical> {} {} {}]",
+                    &logical.left,
                     &logical.operator.token_type.to_string(),
-                    vec![&logical.left, &logical.right]
+                    &logical.right
                 ),
-                Self::Literal(value) => value.to_string(),
+                Self::Literal(value) => format!("[<logical> {}]", value),
                 Self::Var(var) => var.literal.clone().map_or("None".to_string(), |t| format!(
-                    "line: {}, col: {}, {}",
+                    "[<var> line: {}, col: {}, name: {}]",
                     var.line, var.column, t
                 )
                 .to_string()),
-                Self::Assign(assign) =>
-                    format!("target: {}, expr: {}", assign.name, assign.expression),
+                Self::Assign(assign) => format!(
+                    "[<assign> target: {}, expr: {}]",
+                    assign.name, assign.expression
+                ),
             }
         )
     }
