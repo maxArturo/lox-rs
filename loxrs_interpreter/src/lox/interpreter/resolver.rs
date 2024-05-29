@@ -4,6 +4,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::FuncType;
+use crate::lox::entities::stmt::StmtClass;
 use crate::lox::entities::Expr;
 use crate::lox::entities::{eval::Interpreter, Token};
 
@@ -227,6 +228,7 @@ impl StmtVisitor for Resolver {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Class(stmt) => self.class_stmt(stmt),
             Stmt::Return(stmt) => self.return_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
@@ -312,6 +314,13 @@ impl StmtVisitor for Resolver {
     fn while_stmt(&mut self, stmt: &StmtWhile) -> Result<Option<Value>> {
         self.resolve_expr(&stmt.expr)?;
         self.resolve_stmt(&stmt.stmt)
+    }
+
+    fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        self.declare(&stmt.name)?;
+        self.define(&stmt.name)?;
+        self.assign(&stmt.name)?;
+        Ok(None)
     }
 }
 

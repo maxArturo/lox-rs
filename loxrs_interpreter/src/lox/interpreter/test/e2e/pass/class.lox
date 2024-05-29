@@ -1,0 +1,7 @@
+class Cream {
+  serve() {
+    return "Scones";
+  }
+}
+
+print Cream;

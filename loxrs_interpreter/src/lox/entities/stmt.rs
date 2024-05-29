@@ -12,9 +12,16 @@ pub enum Stmt {
     Block(StmtBlock),
     If(StmtIf),
     While(StmtWhile),
+    Class(StmtClass),
 }
 
 type StmtB = Box<Stmt>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StmtClass {
+    pub name: Token,
+    pub methods: Vec<StmtFun>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtReturn {
@@ -65,6 +72,7 @@ pub struct StmtIf {
 impl Display for Stmt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Stmt::Class(stmt) => write!(f, "[Stmt]Class: {}", stmt),
             Stmt::Fun(stmt) => write!(f, "[Stmt]Function: {}", stmt),
             Stmt::Return(stmt) => write!(f, "[Stmt]Return: {}", stmt),
             Stmt::Expr(stmt) => write!(f, "[Stmt]Expr: {}", stmt),
@@ -80,6 +88,15 @@ impl Display for Stmt {
 impl Display for StmtReturn {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.keyword, self.val)
+    }
+}
+
+impl Display for StmtClass {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StmtClass")
+            .field("name", &self.name)
+            .field("methods", &self.methods)
+            .finish()
     }
 }
 
