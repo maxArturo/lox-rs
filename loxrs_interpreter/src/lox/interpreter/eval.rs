@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::vec;
 
 use log::{debug, trace};
@@ -36,9 +36,16 @@ impl Interpreter {
         let scope = Rc::new(Scope::new());
 
         scope.define(
-            "time",
+            "clock",
             Value::Func(Func::Native(NativeFunction::new(
-                |_args, _env| Ok(Value::String(format!("{:?}", Instant::now()))),
+                |_args, _env| {
+                    Ok(Value::Number(
+                        match SystemTime::now().duration_since(UNIX_EPOCH) {
+                            Ok(n) => n.as_secs_f64(),
+                            Err(_) => panic!("system `time` before UNIX EPOCH!"),
+                        },
+                    ))
+                },
                 Rc::clone(&scope),
                 &[],
                 "time",
