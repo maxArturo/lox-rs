@@ -1,4 +1,4 @@
-use crate::lox::entities::expr::ExprKind;
+use crate::lox::entities::{expr::ExprKind, stmt::StmtClass};
 
 use super::super::entities::{
     expr::{ExprFunction, ExprGrouping},
@@ -12,6 +12,8 @@ use std::rc::Rc;
 
 pub trait StmtVisitor {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>>;
+
+    fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>>;
 
     fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<Option<Value>>;
 

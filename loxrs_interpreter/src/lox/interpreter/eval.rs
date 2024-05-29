@@ -8,6 +8,8 @@ use log::{debug, trace};
 
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::Func;
+use crate::lox::entities::stmt::StmtClass;
+use crate::lox::entities::Class;
 
 use super::super::entities::eval::Interpreter;
 use super::super::entities::func::{Function, NativeFunction};
@@ -316,6 +318,7 @@ impl StmtVisitor for Interpreter {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Class(stmt) => self.class_stmt(stmt),
             Stmt::Return(stmt) => self.return_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
@@ -410,6 +413,17 @@ impl StmtVisitor for Interpreter {
             self.exec_stmt(&stmt.stmt)?;
             res = self.eval(&stmt.expr)?;
         }
+        Ok(None)
+    }
+
+    fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        let name = stmt.name.extract_identifier_str()?;
+        self.scope.define(name, Value::Nil);
+        let class = Class {
+            name: name.to_owned(),
+        };
+
+        self.scope.assign(name, Value::Class(class))?;
         Ok(None)
     }
 }

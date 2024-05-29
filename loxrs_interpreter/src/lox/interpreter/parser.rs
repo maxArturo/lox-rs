@@ -115,7 +115,9 @@ impl Parser {
     fn stmt(&mut self) -> Option<Stmt> {
         let stmt;
         // declarations
-        if self.matches(&[TokenType::Fun]).is_some() && self.check(&TokenType::Identifier) {
+        if self.matches(&[TokenType::Class]).is_some() && self.check(&TokenType::Identifier) {
+            stmt = self.class_stmt();
+        } else if self.matches(&[TokenType::Fun]).is_some() && self.check(&TokenType::Identifier) {
             stmt = self.fun_stmt("function");
         } else if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
@@ -145,6 +147,33 @@ impl Parser {
                 None
             }
         }
+    }
+
+    fn class_stmt(&mut self) -> Result<Stmt> {
+        let name = self
+            .consume(
+                &TokenType::Identifier,
+                "Expected `identifier` after `class` keyword.",
+            )?
+            .to_owned();
+
+        self.consume(&TokenType::LeftBrace, "Expected `{{` before `class` body")?;
+
+        let mut methods: Vec<StmtFun> = Vec::new();
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            if let Ok(Stmt::Fun(s)) = self.fun_stmt("method") {
+                methods.push(s)
+            } else {
+                return Err(self.error(self.peek(), "Error in `class` statement body"));
+            }
+        }
+
+        self.consume(&TokenType::RightBrace, "Expected `}` after class body.")?;
+        Ok(Stmt::Class(crate::lox::entities::stmt::StmtClass {
+            name,
+            methods,
+        }))
     }
 
     fn while_stmt(&mut self) -> Result<Stmt> {
@@ -298,7 +327,7 @@ impl Parser {
 
         self.consume(
             &TokenType::LeftParen,
-            "Expected `(` after `fun` identifier.",
+            &format!("expected `(` after `{}` identifier", kind),
         )?;
 
         let mut params = vec![];
@@ -318,7 +347,7 @@ impl Parser {
                     });
                 }
                 params.push(
-                    self.consume(&TokenType::Identifier, "expected parameer name")?
+                    self.consume(&TokenType::Identifier, "expected parameter name")?
                         .clone(),
                 );
 
