@@ -421,6 +421,7 @@ impl StmtVisitor for Interpreter {
         self.scope.define(name, Value::Nil);
         let class = Class {
             name: name.to_owned(),
+            methods: Vec::new(),
         };
 
         self.scope.assign(name, Value::Class(class))?;

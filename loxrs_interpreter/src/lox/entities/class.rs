@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
-// runtime representation of a Lox Class.
+use super::func::Function;
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Class {
     pub name: String,
+    pub methods: Vec<Function>,
 }
 
 impl Display for Class {
