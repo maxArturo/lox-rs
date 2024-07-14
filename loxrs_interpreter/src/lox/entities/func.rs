@@ -1,6 +1,6 @@
 use super::eval::Interpreter;
 use super::expr::ExprFunction;
-use super::{Token, Value};
+use super::{Class, Token, Value};
 use loxrs_env::Scope;
 use loxrs_types::Result;
 use std::fmt::Result as fmt_result;
@@ -17,6 +17,7 @@ pub enum FuncType {
 pub enum Func {
     Lox(Function),
     Native(NativeFunction),
+    Class(Rc<Class>),
 }
 
 pub type FuncDefinition = fn(&mut Interpreter, Rc<Scope<Value>>) -> Result<Value>;

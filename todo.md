@@ -26,4 +26,14 @@ attempt to subtract with overflow
 - [x] working variable resolution pass
 - [x] error on reassigned variables within same scope
 - [x] error on return statements outside of function scope
+- [x] 2024-07-08 08:20 need to see how to store references to classes from an instance in parsing
+
+## nice to haves
+
+- [ ] escape sequences like this
+```shell
+> print "\"";
+==> "
+```
+
 

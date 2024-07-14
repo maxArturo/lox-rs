@@ -235,14 +235,16 @@ impl ExprVisitor<Value> for Interpreter {
             let val = self.eval(&expr_assign.expression)?;
             let var_name = expr_assign.name.extract_identifier_str()?;
 
-            if let Some(distance) = self.locals.borrow().get(expr) {
-                self.scope.assign_at(*distance, var_name, val.clone())?;
-            } else if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
+            if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
                 // TODO missing tests here
                 return Err(LoxErr::Eval {
                     expr: var_name.to_owned(),
                     message: "Not allowed to override native function".to_owned(),
                 });
+            }
+
+            if let Some(distance) = self.locals.borrow().get(expr) {
+                self.scope.assign_at(*distance, var_name, val.clone())?;
             } else {
                 self.globals.define(var_name, val.clone());
             }
@@ -291,7 +293,7 @@ impl ExprVisitor<Value> for Interpreter {
             _ => {
                 return Err(LoxErr::Eval {
                     expr: callee.to_string(),
-                    message: "Invalid call".to_string(),
+                    message: "Invalid call on non-func value".to_string(),
                 })
             }
         };
@@ -419,12 +421,15 @@ impl StmtVisitor for Interpreter {
     fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
         let name = stmt.name.extract_identifier_str()?;
         self.scope.define(name, Value::Nil);
-        let class = Class {
-            name: name.to_owned(),
-            methods: Vec::new(),
-        };
+        // let class = ;
 
-        self.scope.assign(name, Value::Class(class))?;
+        self.scope.assign(
+            name,
+            Value::Func(Func::Class(Rc::new(Class {
+                name: name.to_owned(),
+                methods: Vec::new(),
+            }))),
+        )?;
         Ok(None)
     }
 }

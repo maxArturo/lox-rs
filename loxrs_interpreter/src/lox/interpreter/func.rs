@@ -5,7 +5,7 @@ use loxrs_env::Scope;
 use loxrs_types::Result;
 
 use crate::lox::{
-    entities::{eval::Interpreter, func::Func, Value},
+    entities::{class::Instance, eval::Interpreter, func::Func, Value},
     interpreter::visitor::StmtVisitor,
 };
 
@@ -43,6 +43,7 @@ impl Func {
 
                 (e.def)(interpreter, scope)
             }
+            Func::Class(class) => Ok(Value::Instance(Instance::new(Rc::clone(class)))),
         }
     }
 
@@ -50,6 +51,7 @@ impl Func {
         match self {
             Func::Lox(e) => e.arity(),
             Func::Native(e) => e.arity(),
+            Func::Class(_) => 0,
         }
     }
 
@@ -57,6 +59,7 @@ impl Func {
         match self {
             Func::Lox(e) => e.name(),
             Func::Native(e) => e.name(),
+            Func::Class(e) => &e.name,
         }
     }
 }

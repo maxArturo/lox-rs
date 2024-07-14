@@ -8,3 +8,8 @@ The code samples (which are also e2e tests) are located [here](./loxrs_interpret
 
 You can see a list of [TODOs](./todo.md) as well.
 
+running a single lox file
+```shell 
+cargo run -- ./loxrs_interpreter/src/lox/interpreter/test/e2e/unimplemented/basic_class.lox
+
+```

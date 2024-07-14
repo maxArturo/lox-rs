@@ -1,7 +1,18 @@
-class DevonshireCream {
-  serveOn() {
-    return "Scones";
-  }
-}
+// class DevonshireCream {
+//   serveOn() {
+//     return "Scones";
+//   }
+// }
+// 
+// print DevonshireCream; // Prints "DevonshireCream".
 
-print DevonshireCream; // Prints "DevonshireCream".
+class Bagel {}
+
+print "this is bagel: "; 
+print Bagel;
+
+var bb = Bagel();
+
+print "this is instance: ";
+print bb;
+
