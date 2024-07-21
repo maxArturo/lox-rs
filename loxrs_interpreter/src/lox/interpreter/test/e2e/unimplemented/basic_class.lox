@@ -16,3 +16,18 @@ var bb = Bagel();
 print "this is instance: ";
 print bb;
 
+// flexing getters and setters
+bb.test = "yahoo";
+
+print bb.test;
+
+
+var one = Bagel();
+var two = Bagel();
+
+bb.one = one;
+bb.one.two = two;
+
+bb.one.two.foo = "yea";
+
+print bb.one.two.foo;

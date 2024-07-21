@@ -45,6 +45,8 @@ pub trait ExprVisitor<T> {
             ExprKind::Literal(lit) => self.literal(lit.as_ref()),
             ExprKind::Var(_) => self.var(expr),
             ExprKind::Assign(_) => self.assign(expr),
+            ExprKind::Get(get) => self.get(&get.name, &get.expr),
+            ExprKind::Set(set) => self.set(&set.name, &set.target, &set.value),
             ExprKind::Call(call) => self.call(&call.callee, &call.args),
         }
     }
@@ -62,6 +64,10 @@ pub trait ExprVisitor<T> {
     fn var(&mut self, expression: &Expr) -> Result<T>;
 
     fn assign(&mut self, expr: &Expr) -> Result<T>;
+
+    fn get(&mut self, name: &Token, expr: &Expr) -> Result<T>;
+
+    fn set(&mut self, name: &Token, expr: &Expr, value: &Expr) -> Result<T>;
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
 

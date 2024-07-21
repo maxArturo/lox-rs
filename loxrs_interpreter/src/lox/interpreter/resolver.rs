@@ -395,19 +395,6 @@ impl ExprVisitor<Option<Value>> for Resolver {
         })
     }
 
-    fn logical(&mut self, left: &Expr, right: &Expr, _operator: &Token) -> Result<Option<Value>> {
-        self.resolve_expr(left)?;
-        self.resolve_expr(right)
-    }
-
-    fn call(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<Value>> {
-        self.resolve_expr(callee)?;
-        for expr in args {
-            self.resolve_expr(expr)?;
-        }
-        Ok(None)
-    }
-
     fn assign(&mut self, expr: &Expr) -> Result<Option<Value>> {
         if let ExprKind::Assign(expr_assign) = &expr.kind {
             trace!(
@@ -431,5 +418,27 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 expr
             ),
         })
+    }
+
+    fn logical(&mut self, left: &Expr, right: &Expr, _operator: &Token) -> Result<Option<Value>> {
+        self.resolve_expr(left)?;
+        self.resolve_expr(right)
+    }
+
+    fn call(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<Value>> {
+        self.resolve_expr(callee)?;
+        for expr in args {
+            self.resolve_expr(expr)?;
+        }
+        Ok(None)
+    }
+
+    fn get(&mut self, _name: &Token, expr: &Expr) -> Result<Option<Value>> {
+        self.resolve_expr(expr)
+    }
+
+    fn set(&mut self, _name: &Token, expr: &Expr, value: &Expr) -> Result<Option<Value>> {
+        self.resolve_expr(expr)?;
+        self.resolve_expr(value)
     }
 }

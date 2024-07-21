@@ -314,6 +314,43 @@ impl ExprVisitor<Value> for Interpreter {
 
         fun.call(self, args_eval)
     }
+
+    fn get(&mut self, name: &Token, expr: &Expr) -> Result<Value> {
+        match self.eval(expr)? {
+            Literal::Instance(instance) => {
+                trace!("getting {} from {}", name, instance);
+                instance.get(name.extract_identifier_str()?)
+            }
+            _ => Err(LoxErr::Eval {
+                expr: expr.to_string(),
+                message: "Invalid call on non-instance value".to_string(),
+            }),
+        }
+    }
+
+    fn set(&mut self, name: &Token, target: &Expr, value: &Expr) -> Result<Value> {
+        match self.eval(target)? {
+            Literal::Instance(instance) => {
+                let val = self.eval(value)?;
+
+                trace!("setting field: {}\nto: {}\non: {}", name, val, instance);
+                instance.set(name.extract_identifier_str()?, val.to_owned());
+                trace!(
+                    "setting field Complete: {}\nto: {}\non: {}",
+                    name,
+                    val,
+                    instance
+                );
+
+                trace!("curr scope: {}", &self.scope);
+                Ok(val)
+            }
+            _ => Err(LoxErr::Eval {
+                expr: target.to_string(),
+                message: "Only instances can be accessed via fields (`.`)".to_string(),
+            }),
+        }
+    }
 }
 
 impl StmtVisitor for Interpreter {

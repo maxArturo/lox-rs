@@ -1,7 +1,8 @@
 use log::{error, trace};
 
 use crate::lox::entities::expr::{
-    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGrouping, ExprKind, ExprUnary,
+    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGet, ExprGrouping, ExprKind, ExprSet,
+    ExprUnary,
 };
 use crate::lox::entities::stmt::{
     StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
@@ -98,10 +99,7 @@ impl Parser {
         None
     }
 
-    /*
-     * production rules
-     */
-
+    /// production rules
     pub fn parse(&mut self) -> Result<Vec<Stmt>> {
         let mut statements: Vec<Stmt> = vec![];
         while !self.is_at_end() {
@@ -415,6 +413,13 @@ impl Parser {
                         expression: val,
                     }))))
                 }
+                ExprKind::Get(get) => {
+                    return Ok(Expr::new(ExprKind::Set(Box::new(ExprSet {
+                        name: get.name,
+                        target: get.expr,
+                        value: val,
+                    }))))
+                }
                 _ => {
                     // explicitly not returning the error, but displaying it
                     error!("{}", self.error(&eq_token, "Invalid assignment target"));
@@ -540,6 +545,15 @@ impl Parser {
         loop {
             if self.matches(&[TokenType::LeftParen]).is_some() {
                 expr = self.finish_call(expr)?;
+            } else if self.matches(&[TokenType::Dot]).is_some() {
+                let name = self.consume(
+                    &TokenType::Identifier,
+                    "expected identifier name after `.`.",
+                )?;
+                expr = Expr::new(ExprKind::Get(Box::new(ExprGet {
+                    name: name.clone(),
+                    expr,
+                })))
             } else {
                 break;
             }
