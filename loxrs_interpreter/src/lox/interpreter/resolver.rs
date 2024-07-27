@@ -45,10 +45,6 @@ impl Display for VarStatus {
 #[derive(Debug)]
 pub struct Resolver {
     interpreter: Rc<RefCell<Interpreter>>,
-    // TODO here this needs to be changed into an enum
-    // and on `assign` it needs to be set to assigned
-    // when we pop a scope, any unassigned vars should be
-    // an error
     stack: Vec<HashMap<String, VarStatus>>,
     curr_function: FuncType,
 }
@@ -77,15 +73,22 @@ impl Resolver {
         }
     }
 
-    fn resolve_fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
+    fn resolve_fun_stmt(&mut self, stmt: &StmtFun, func_type: FuncType) -> Result<Option<Value>> {
+        if func_type == FuncType::None {
+            return Err(LoxErr::Internal {
+                message: "Programmer error: cannot use `FuncType::None` within a function resolver"
+                    .to_owned(),
+            });
+        }
+
         trace!(
             "creating stack from fun stmt: {} with stack: {}",
             stmt,
             self,
         );
 
-        let prev_function_type = self.curr_function.clone();
-        self.curr_function = FuncType::Function;
+        let prev_function_type = self.curr_function;
+        self.curr_function = func_type;
 
         self.begin_scope();
 
@@ -255,7 +258,8 @@ impl StmtVisitor for Resolver {
                     stmt.keyword.line, stmt.keyword.column,
                 ),
             }),
-            FuncType::Function => self.resolve_expr(&stmt.val),
+            // TODO this needs to be fixed for `this` to work properly
+            FuncType::Function | FuncType::Method => self.resolve_expr(&stmt.val),
         }
     }
 
@@ -277,7 +281,7 @@ impl StmtVisitor for Resolver {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
-        self.resolve_fun_stmt(stmt)
+        self.resolve_fun_stmt(stmt, FuncType::Function)
     }
 
     fn block_stmt(
@@ -320,13 +324,18 @@ impl StmtVisitor for Resolver {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
+
+        for fun in stmt.methods.iter() {
+            self.resolve_fun_stmt(fun, FuncType::Method)?;
+        }
+
         Ok(None)
     }
 }
 
 impl ExprVisitor<Option<Value>> for Resolver {
     fn func(&mut self, def: &ExprFunction) -> Result<Option<Value>> {
-        let prev_function_type = self.curr_function.clone();
+        let prev_function_type = self.curr_function;
         self.curr_function = FuncType::Function;
 
         self.begin_scope();

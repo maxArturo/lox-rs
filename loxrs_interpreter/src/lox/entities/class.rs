@@ -1,17 +1,26 @@
 use loxrs_types::{LoxErr, Result as LoxRes};
 use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
-use super::{func::Function, Value};
+use super::{
+    func::{Func, Function},
+    Value,
+};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Class {
     pub name: String,
-    pub methods: Vec<Function>,
+    pub methods: HashMap<String, Function>,
 }
 
 impl Display for Class {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[<Class {}>]", self.name)
+    }
+}
+
+impl Class {
+    pub fn find_method(&self, name: &str) -> Option<&Function> {
+        self.methods.get(name)
     }
 }
 
@@ -35,11 +44,17 @@ impl Instance {
             return Ok(fields.get(key).unwrap_or(&Value::Nil).clone());
         }
 
-        Err(LoxErr::Undefined {
-            message: format!("undefined property: {}", key),
-        })
+        match self.class.find_method(key) {
+            Some(method) => Ok(Value::Func(Func::Lox(method.clone()))),
+            None => Err(LoxErr::Undefined {
+                message: format!("undefined property: {}", key),
+            }),
+        }
     }
 
+    /// [design_note]
+    /// implicit shadowing of class methods by instance variables
+    /// happens here
     pub fn set(&self, key: &str, val: Value) {
         self.fields.borrow_mut().insert(key.to_owned(), val);
     }

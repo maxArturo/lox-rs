@@ -458,13 +458,28 @@ impl StmtVisitor for Interpreter {
     fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
         let name = stmt.name.extract_identifier_str()?;
         self.scope.define(name, Value::Nil);
-        // let class = ;
+
+        let mut methods: HashMap<String, Function> = HashMap::new();
+
+        for method in stmt.methods.iter() {
+            match self.func(&method.def)? {
+                Value::Func(Func::Lox(func)) => {
+                    methods.insert(method.name.extract_identifier_str()?.to_owned(), func);
+                }
+                _ => {
+                    return Err(LoxErr::Eval {
+                        expr: method.def.to_string(),
+                        message: "Expected a method definition within the class".to_owned(),
+                    })
+                }
+            }
+        }
 
         self.scope.assign(
             name,
             Value::Func(Func::Class(Rc::new(Class {
                 name: name.to_owned(),
-                methods: Vec::new(),
+                methods,
             }))),
         )?;
         Ok(None)

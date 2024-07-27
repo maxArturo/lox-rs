@@ -7,9 +7,10 @@ use std::fmt::Result as fmt_result;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum FuncType {
     Function,
+    Method,
     None,
 }
 
