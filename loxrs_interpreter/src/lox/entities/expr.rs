@@ -59,6 +59,7 @@ pub enum ExprKind {
     Assign(Box<ExprAssign>),
     Get(Box<ExprGet>),
     Set(Box<ExprSet>),
+    This(Token),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -154,11 +155,12 @@ impl fmt::Display for ExprKind {
                     &logical.right
                 ),
                 Self::Literal(value) => format!("[<logical> {}]", value),
-                Self::Var(var) => var.literal.clone().map_or("None".to_string(), |t| format!(
-                    "[<var> line: {}, col: {}, name: {}]",
-                    var.line, var.column, t
-                )
-                .to_string()),
+                Self::Var(var) | Self::This(var) =>
+                    var.literal.clone().map_or("None".to_string(), |t| format!(
+                        "[<var> line: {}, col: {}, name: {}]",
+                        var.line, var.column, t
+                    )
+                    .to_string()),
                 Self::Assign(assign) => format!(
                     "[<assign> target: {}, expr: {}]",
                     assign.name, assign.expression

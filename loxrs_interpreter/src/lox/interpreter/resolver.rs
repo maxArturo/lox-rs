@@ -142,6 +142,8 @@ impl Resolver {
             );
         }
 
+        // TODO check if this should return an error here instead,
+        // denoting a programmer error
         Ok(None)
     }
 
@@ -325,9 +327,18 @@ impl StmtVisitor for Resolver {
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
 
+        // open implicit scope for `this` var
+        self.begin_scope();
+
+        self.stack
+            .last_mut()
+            .map(|scope| scope.insert("this".to_owned(), VarStatus::Assigned));
+
         for fun in stmt.methods.iter() {
             self.resolve_fun_stmt(fun, FuncType::Method)?;
         }
+
+        self.end_scope();
 
         Ok(None)
     }
@@ -449,5 +460,19 @@ impl ExprVisitor<Option<Value>> for Resolver {
     fn set(&mut self, _name: &Token, expr: &Expr, value: &Expr) -> Result<Option<Value>> {
         self.resolve_expr(expr)?;
         self.resolve_expr(value)
+    }
+
+    fn this(&mut self, expression: &Expr) -> Result<Option<Value>> {
+        if let ExprKind::This(this) = &expression.kind {
+            trace!("resolving to locals from `this` expr: {}", this);
+            return self.resolve_local(expression, this.extract_identifier_str()?, false);
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `this` code path, programmer error",
+                expression
+            ),
+        })
     }
 }

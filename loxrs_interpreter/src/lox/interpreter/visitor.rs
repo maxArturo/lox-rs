@@ -44,6 +44,7 @@ pub trait ExprVisitor<T> {
             ExprKind::Function(func) => self.func(func.as_ref()),
             ExprKind::Literal(lit) => self.literal(lit.as_ref()),
             ExprKind::Var(_) => self.var(expr),
+            ExprKind::This(_) => self.this(expr),
             ExprKind::Assign(_) => self.assign(expr),
             ExprKind::Get(get) => self.get(&get.name, &get.expr),
             ExprKind::Set(set) => self.set(&set.name, &set.target, &set.value),
@@ -62,6 +63,8 @@ pub trait ExprVisitor<T> {
     fn grouping(&mut self, expression: &ExprGrouping) -> Result<T>;
 
     fn var(&mut self, expression: &Expr) -> Result<T>;
+
+    fn this(&mut self, expression: &Expr) -> Result<T>;
 
     fn assign(&mut self, expr: &Expr) -> Result<T>;
 

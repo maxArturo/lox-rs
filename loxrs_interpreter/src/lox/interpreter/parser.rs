@@ -611,6 +611,10 @@ impl Parser {
             return Ok(Expr::new(ExprKind::Literal(Box::new(Literal::Nil))));
         }
 
+        if let Some(token) = self.matches(&[TokenType::This]) {
+            return Ok(Expr::new(ExprKind::This(token.clone())));
+        }
+
         // handle string and num literals
         if let Some(token) = self.matches(&[TokenType::String, TokenType::Number]) {
             return Ok(Expr::new(ExprKind::Literal(Box::new(
@@ -627,7 +631,7 @@ impl Parser {
 
         if self.matches(&[TokenType::LeftParen]).is_some() {
             let inner_expr = self.expression()?;
-            self.consume(&TokenType::RightParen, "Expected ) after this token")?;
+            self.consume(&TokenType::RightParen, "Expected ) after current token")?;
             return Ok(Expr::new(ExprKind::Grouping(Box::new(ExprGrouping {
                 expression: inner_expr,
             }))));

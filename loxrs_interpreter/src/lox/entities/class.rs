@@ -45,6 +45,7 @@ impl Instance {
         }
 
         match self.class.find_method(key) {
+            // TODO add a "bind" method here to assign a "this" for method functions
             Some(method) => Ok(Value::Func(Func::Lox(method.clone()))),
             None => Err(LoxErr::Undefined {
                 message: format!("undefined property: {}", key),
