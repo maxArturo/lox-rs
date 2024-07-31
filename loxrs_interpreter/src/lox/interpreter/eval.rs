@@ -6,6 +6,7 @@ use std::vec;
 
 use log::{debug, trace};
 
+use crate::lox::entities::class::Instance;
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::Func;
 use crate::lox::entities::stmt::StmtClass;
@@ -260,6 +261,50 @@ impl ExprVisitor<Value> for Interpreter {
         })
     }
 
+    fn get(&mut self, name: &Token, expr: &Expr) -> Result<Value> {
+        match self.eval(expr)? {
+            Literal::Instance(instance) => {
+                trace!("getting {} from {}", name, instance.borrow());
+                Instance::get(instance, name.extract_identifier_str()?)
+            }
+            _ => Err(LoxErr::Eval {
+                expr: expr.to_string(),
+                message: "Invalid call on non-instance value".to_string(),
+            }),
+        }
+    }
+
+    fn set(&mut self, name: &Token, target: &Expr, value: &Expr) -> Result<Value> {
+        match self.eval(target)? {
+            Literal::Instance(instance) => {
+                let val = self.eval(value)?;
+
+                trace!(
+                    "setting field: {}\nto: {}\non: {}",
+                    name,
+                    val,
+                    instance.borrow()
+                );
+                instance
+                    .borrow()
+                    .set(name.extract_identifier_str()?, val.to_owned());
+                trace!(
+                    "setting field Complete: {}\nto: {}\non: {}",
+                    name,
+                    val,
+                    instance.borrow()
+                );
+
+                trace!("curr scope: {}", &self.scope);
+                Ok(val)
+            }
+            _ => Err(LoxErr::Eval {
+                expr: target.to_string(),
+                message: "Only instances can be accessed via fields (`.`)".to_string(),
+            }),
+        }
+    }
+
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
         let left_val = self.eval(left)?;
         let left_truthy = self.truthy(&left_val);
@@ -315,41 +360,20 @@ impl ExprVisitor<Value> for Interpreter {
         fun.call(self, args_eval)
     }
 
-    fn get(&mut self, name: &Token, expr: &Expr) -> Result<Value> {
-        match self.eval(expr)? {
-            Literal::Instance(instance) => {
-                trace!("getting {} from {}", name, instance);
-                instance.get(name.extract_identifier_str()?)
-            }
-            _ => Err(LoxErr::Eval {
-                expr: expr.to_string(),
-                message: "Invalid call on non-instance value".to_string(),
-            }),
+    fn this(&mut self, expression: &Expr) -> Result<Value> {
+        if let ExprKind::This(this) = &expression.kind {
+            let str = this.extract_identifier_str()?;
+
+            let res = self.lookup_var(str, expression)?;
+            return Ok(res.clone());
         }
-    }
 
-    fn set(&mut self, name: &Token, target: &Expr, value: &Expr) -> Result<Value> {
-        match self.eval(target)? {
-            Literal::Instance(instance) => {
-                let val = self.eval(value)?;
-
-                trace!("setting field: {}\nto: {}\non: {}", name, val, instance);
-                instance.set(name.extract_identifier_str()?, val.to_owned());
-                trace!(
-                    "setting field Complete: {}\nto: {}\non: {}",
-                    name,
-                    val,
-                    instance
-                );
-
-                trace!("curr scope: {}", &self.scope);
-                Ok(val)
-            }
-            _ => Err(LoxErr::Eval {
-                expr: target.to_string(),
-                message: "Only instances can be accessed via fields (`.`)".to_string(),
-            }),
-        }
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `var` code path, programmer error",
+                expression
+            ),
+        })
     }
 }
 

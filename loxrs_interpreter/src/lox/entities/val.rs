@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::rc::Rc;
 
 use super::class::Instance;
 use super::func::Func;
@@ -11,7 +13,7 @@ pub enum Literal {
     Number(f64),
     String(String),
     Func(Func),
-    Instance(Instance),
+    Instance(Rc<RefCell<Instance>>),
     Nil,
 }
 
@@ -34,7 +36,7 @@ impl Display for Literal {
                 return write!(f, "{}", bool);
             }
             Self::Instance(instance) => {
-                return write!(f, "{}", instance);
+                return write!(f, "{}", instance.borrow());
             }
         };
         write!(f, "{}", str_val)

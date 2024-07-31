@@ -1,8 +1,10 @@
+use super::class::Instance;
 use super::eval::Interpreter;
 use super::expr::ExprFunction;
 use super::{Class, Token, Value};
 use loxrs_env::Scope;
 use loxrs_types::Result;
+use std::cell::RefCell;
 use std::fmt::Result as fmt_result;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
@@ -37,6 +39,17 @@ impl Function {
 
     pub fn name(&self) -> &str {
         "<function>"
+    }
+
+    pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Self {
+        let bind_scope = Scope::from_parent(Rc::clone(&self.scope));
+        bind_scope.define("this", Value::Instance(instance));
+
+        Function {
+            def: self.def.clone(),
+            scope: bind_scope,
+            params: self.params.clone(),
+        }
     }
 }
 

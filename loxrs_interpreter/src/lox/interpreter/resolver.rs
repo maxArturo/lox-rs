@@ -338,9 +338,7 @@ impl StmtVisitor for Resolver {
             self.resolve_fun_stmt(fun, FuncType::Method)?;
         }
 
-        self.end_scope();
-
-        Ok(None)
+        self.end_scope()
     }
 }
 
@@ -465,7 +463,7 @@ impl ExprVisitor<Option<Value>> for Resolver {
     fn this(&mut self, expression: &Expr) -> Result<Option<Value>> {
         if let ExprKind::This(this) = &expression.kind {
             trace!("resolving to locals from `this` expr: {}", this);
-            return self.resolve_local(expression, this.extract_identifier_str()?, false);
+            return self.resolve_local(expression, this.extract_identifier_str()?, true);
         }
 
         Err(LoxErr::Internal {

@@ -30,23 +30,26 @@ pub struct Instance {
     fields: Rc<RefCell<HashMap<String, Value>>>,
 }
 
+pub type InstanceRef = Rc<RefCell<Instance>>;
+
 impl Instance {
-    pub fn new(class: Rc<Class>) -> Self {
-        Self {
+    pub fn new(class: Rc<Class>) -> InstanceRef {
+        Rc::new(RefCell::new(Self {
             class,
             fields: Rc::new(RefCell::new(HashMap::new())),
-        }
+        }))
     }
 
-    pub fn get(&self, key: &str) -> LoxRes<Value> {
-        let fields = self.fields.borrow();
+    pub fn get(instance: InstanceRef, key: &str) -> LoxRes<Value> {
+        let binding = instance.borrow();
+        let fields = binding.fields.borrow();
+
         if fields.contains_key(key) {
             return Ok(fields.get(key).unwrap_or(&Value::Nil).clone());
         }
 
-        match self.class.find_method(key) {
-            // TODO add a "bind" method here to assign a "this" for method functions
-            Some(method) => Ok(Value::Func(Func::Lox(method.clone()))),
+        match instance.borrow().class.find_method(key) {
+            Some(method) => Ok(Value::Func(Func::Lox(method.bind(Rc::clone(&instance))))),
             None => Err(LoxErr::Undefined {
                 message: format!("undefined property: {}", key),
             }),

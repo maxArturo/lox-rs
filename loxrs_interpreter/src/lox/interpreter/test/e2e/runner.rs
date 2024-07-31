@@ -77,3 +77,9 @@ fn spec_closure() {
     let folder = get_test_folder();
     traverse(&folder.join("spec/closure"), |res| res.is_ok());
 }
+
+#[test]
+fn spec_class() {
+    let folder = get_test_folder();
+    traverse(&folder.join("spec/class"), |res| res.is_ok());
+}

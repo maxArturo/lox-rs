@@ -22,15 +22,16 @@ impl Token {
         }
     }
 
-    pub fn ensure_type(&self, ensure: TokenType) -> bool {
-        self.token_type == ensure
-    }
-
     pub fn extract_identifier_str(&self) -> Result<&str> {
         let err = || LoxErr::Internal {
             message: "No string value defined for identifier token".to_string(),
         };
-        if self.ensure_type(TokenType::Identifier) {
+
+        if self.token_type == TokenType::This {
+            return Ok("this");
+        }
+
+        if self.token_type == TokenType::Identifier {
             return self.literal.as_ref().ok_or(err()).and_then(|l| match l {
                 Literal::String(str) => Ok(str.as_str()),
                 _ => Err(err()),
