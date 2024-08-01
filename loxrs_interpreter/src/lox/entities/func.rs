@@ -16,6 +16,13 @@ pub enum FuncType {
     None,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum ClassType {
+    #[default]
+    None,
+    Class,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Func {
     Lox(Function),

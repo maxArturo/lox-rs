@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
-use crate::lox::entities::func::FuncType;
+use crate::lox::entities::func::{ClassType, FuncType};
 use crate::lox::entities::stmt::StmtClass;
 use crate::lox::entities::Expr;
 use crate::lox::entities::{eval::Interpreter, Token};
@@ -47,6 +47,7 @@ pub struct Resolver {
     interpreter: Rc<RefCell<Interpreter>>,
     stack: Vec<HashMap<String, VarStatus>>,
     curr_function: FuncType,
+    curr_class: ClassType,
 }
 
 impl Display for Resolver {
@@ -70,6 +71,7 @@ impl Resolver {
             interpreter,
             stack: vec![],
             curr_function: FuncType::None,
+            curr_class: ClassType::default(),
         }
     }
 
@@ -323,6 +325,9 @@ impl StmtVisitor for Resolver {
     }
 
     fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        let prev_class_type = self.curr_class;
+        self.curr_class = ClassType::Class;
+
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
@@ -338,7 +343,10 @@ impl StmtVisitor for Resolver {
             self.resolve_fun_stmt(fun, FuncType::Method)?;
         }
 
-        self.end_scope()
+        let res = self.end_scope();
+        self.curr_class = prev_class_type;
+
+        res
     }
 }
 
@@ -461,6 +469,12 @@ impl ExprVisitor<Option<Value>> for Resolver {
     }
 
     fn this(&mut self, expression: &Expr) -> Result<Option<Value>> {
+        if self.curr_class == ClassType::None {
+            return Err(LoxErr::Resolve {
+                message: "Can't use the `this` keyword outside a class statement.".to_owned(),
+            });
+        }
+
         if let ExprKind::This(this) = &expression.kind {
             trace!("resolving to locals from `this` expr: {}", this);
             return self.resolve_local(expression, this.extract_identifier_str()?, true);

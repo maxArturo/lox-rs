@@ -1,7 +1,18 @@
 class Cream {
   serve() {
-    return "Scones";
+    return "Scones for " + this.name;
   }
 }
 
-print Cream;
+fun forMe(cream) {
+  cream.name = "me";
+  return cream;
+}
+
+var mine = Cream();
+var yours = forMe(mine).serve;
+
+print yours();
+mine.name = "you";
+
+print yours();
