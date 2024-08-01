@@ -14,6 +14,7 @@ pub enum FuncType {
     Function,
     Method,
     None,
+    Initializer,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -37,6 +38,7 @@ pub struct Function {
     pub def: ExprFunction,
     pub scope: Rc<Scope<Value>>,
     pub params: Vec<Token>,
+    pub is_initializer: bool,
 }
 
 impl Function {
@@ -53,9 +55,8 @@ impl Function {
         bind_scope.define("this", Value::Instance(instance));
 
         Function {
-            def: self.def.clone(),
             scope: bind_scope,
-            params: self.params.clone(),
+            ..self.clone()
         }
     }
 }

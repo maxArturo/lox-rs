@@ -262,7 +262,12 @@ impl StmtVisitor for Resolver {
                     stmt.keyword.line, stmt.keyword.column,
                 ),
             }),
-            // TODO this needs to be fixed for `this` to work properly
+            FuncType::Initializer => Err(LoxErr::Resolve {
+                message: format!(
+                    "Can't return from class initializer scope\n at line: {}, col: {}",
+                    stmt.keyword.line, stmt.keyword.column,
+                ),
+            }),
             FuncType::Function | FuncType::Method => self.resolve_expr(&stmt.val),
         }
     }
@@ -340,7 +345,12 @@ impl StmtVisitor for Resolver {
             .map(|scope| scope.insert("this".to_owned(), VarStatus::Assigned));
 
         for fun in stmt.methods.iter() {
-            self.resolve_fun_stmt(fun, FuncType::Method)?;
+            let func_type = if fun.name.extract_identifier_str()? == "init" {
+                FuncType::Initializer
+            } else {
+                FuncType::Method
+            };
+            self.resolve_fun_stmt(fun, func_type)?;
         }
 
         let res = self.end_scope();

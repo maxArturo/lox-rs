@@ -113,6 +113,7 @@ impl ExprVisitor<Value> for Interpreter {
             def: def.clone(),
             scope,
             params: def.params.clone(),
+            is_initializer: false,
         }));
 
         Ok(func)
@@ -488,7 +489,15 @@ impl StmtVisitor for Interpreter {
         for method in stmt.methods.iter() {
             match self.func(&method.def)? {
                 Value::Func(Func::Lox(func)) => {
-                    methods.insert(method.name.extract_identifier_str()?.to_owned(), func);
+                    let method_name = method.name.extract_identifier_str()?;
+                    let is_initializer = method_name == "init";
+                    methods.insert(
+                        method_name.to_owned(),
+                        Function {
+                            is_initializer,
+                            ..func
+                        },
+                    );
                 }
                 _ => {
                     return Err(LoxErr::Eval {

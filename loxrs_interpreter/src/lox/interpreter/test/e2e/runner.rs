@@ -83,3 +83,9 @@ fn spec_class() {
     let folder = get_test_folder();
     traverse(&folder.join("spec/class"), |res| res.is_ok());
 }
+
+#[test]
+fn spec_if() {
+    let folder = get_test_folder();
+    traverse(&folder.join("spec/if"), |res| res.is_ok());
+}
