@@ -31,7 +31,7 @@ attempt to subtract with overflow
 
 ## nice to haves
 
-- [ ] escape sequences like this
+- [x] escape sequences like this
 ```shell
 > print "\"";
 ==> "

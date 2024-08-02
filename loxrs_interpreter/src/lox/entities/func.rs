@@ -63,7 +63,9 @@ impl Function {
 
 impl PartialEq for Function {
     fn eq(&self, other: &Self) -> bool {
-        std::cmp::PartialEq::eq(&self.def, &other.def) && Rc::eq(&self.scope, &other.scope)
+        self.def == other.def
+            && self.params == other.params
+            && self.is_initializer == other.is_initializer
     }
 }
 
