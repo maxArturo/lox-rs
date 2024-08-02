@@ -1,0 +1,29 @@
+class Cream {
+  init (name) {
+    this.name = name;
+
+    print "set name to: " + name;
+    return;
+    print "nope";
+  }
+
+  serve() {
+    return "Scones for " + this.name;
+  }
+}
+
+
+var testy = Cream("me");
+
+print "testy is: ";
+print testy;
+
+var mooie = testy.init("you");
+
+print "testy is: ";
+print testy;
+
+print "mooie is: ";
+print mooie;
+print mooie == testy;
+

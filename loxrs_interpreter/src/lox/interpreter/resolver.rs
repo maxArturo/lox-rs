@@ -5,8 +5,8 @@ use std::{collections::HashMap, rc::Rc};
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::{ClassType, FuncType};
 use crate::lox::entities::stmt::StmtClass;
-use crate::lox::entities::Expr;
 use crate::lox::entities::{eval::Interpreter, Token};
+use crate::lox::entities::{Expr, Literal};
 
 use super::visitor::StmtVisitor;
 use super::{
@@ -262,12 +262,20 @@ impl StmtVisitor for Resolver {
                     stmt.keyword.line, stmt.keyword.column,
                 ),
             }),
-            FuncType::Initializer => Err(LoxErr::Resolve {
-                message: format!(
-                    "Can't return from class initializer scope\n at line: {}, col: {}",
-                    stmt.keyword.line, stmt.keyword.column,
-                ),
-            }),
+            FuncType::Initializer => {
+                if let ExprKind::Literal(lit) = &stmt.val.kind {
+                    if Literal::Nil == **lit {
+                        return self.resolve_expr(&stmt.val);
+                    }
+                }
+
+                Err(LoxErr::Resolve {
+                    message: format!(
+                        "Can't return a value from class initializer scope\n at line: {}, col: {}",
+                        stmt.keyword.line, stmt.keyword.column,
+                    ),
+                })
+            }
             FuncType::Function | FuncType::Method => self.resolve_expr(&stmt.val),
         }
     }

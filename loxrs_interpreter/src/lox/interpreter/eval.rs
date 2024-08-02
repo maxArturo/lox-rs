@@ -207,6 +207,7 @@ impl ExprVisitor<Value> for Interpreter {
                 _ => bin_err(),
             },
             TokenType::BangEqual => Ok(Value::Boolean(left_val != right_val)),
+            // TODO this errors out when comparing instances... probably classes too
             TokenType::EqualEqual => Ok(Value::Boolean(left_val == right_val)),
             _ => bin_err(),
         }
