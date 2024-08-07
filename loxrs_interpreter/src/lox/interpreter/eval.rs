@@ -1,13 +1,16 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::vec;
 
 use log::{debug, trace};
 
+use crate::lox::entities::class::Instance;
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
 use crate::lox::entities::func::Func;
+use crate::lox::entities::stmt::StmtClass;
+use crate::lox::entities::Class;
 
 use super::super::entities::eval::Interpreter;
 use super::super::entities::func::{Function, NativeFunction};
@@ -36,9 +39,16 @@ impl Interpreter {
         let scope = Rc::new(Scope::new());
 
         scope.define(
-            "time",
+            "clock",
             Value::Func(Func::Native(NativeFunction::new(
-                |_args, _env| Ok(Value::String(format!("{:?}", Instant::now()))),
+                |_args, _env| {
+                    Ok(Value::Number(
+                        match SystemTime::now().duration_since(UNIX_EPOCH) {
+                            Ok(n) => n.as_secs_f64(),
+                            Err(_) => panic!("system `time` before UNIX EPOCH!"),
+                        },
+                    ))
+                },
                 Rc::clone(&scope),
                 &[],
                 "time",
@@ -103,6 +113,7 @@ impl ExprVisitor<Value> for Interpreter {
             def: def.clone(),
             scope,
             params: def.params.clone(),
+            is_initializer: false,
         }));
 
         Ok(func)
@@ -196,6 +207,7 @@ impl ExprVisitor<Value> for Interpreter {
                 _ => bin_err(),
             },
             TokenType::BangEqual => Ok(Value::Boolean(left_val != right_val)),
+            // TODO this errors out when comparing instances... probably classes too
             TokenType::EqualEqual => Ok(Value::Boolean(left_val == right_val)),
             _ => bin_err(),
         }
@@ -226,14 +238,16 @@ impl ExprVisitor<Value> for Interpreter {
             let val = self.eval(&expr_assign.expression)?;
             let var_name = expr_assign.name.extract_identifier_str()?;
 
-            if let Some(distance) = self.locals.borrow().get(expr) {
-                self.scope.assign_at(*distance, var_name, val.clone())?;
-            } else if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
+            if let Ok(Value::Func(Func::Native(_func))) = self.globals.get(var_name) {
                 // TODO missing tests here
                 return Err(LoxErr::Eval {
                     expr: var_name.to_owned(),
                     message: "Not allowed to override native function".to_owned(),
                 });
+            }
+
+            if let Some(distance) = self.locals.borrow().get(expr) {
+                self.scope.assign_at(*distance, var_name, val.clone())?;
             } else {
                 self.globals.define(var_name, val.clone());
             }
@@ -247,6 +261,50 @@ impl ExprVisitor<Value> for Interpreter {
                 expr
             ),
         })
+    }
+
+    fn get(&mut self, name: &Token, expr: &Expr) -> Result<Value> {
+        match self.eval(expr)? {
+            Literal::Instance(instance) => {
+                trace!("getting {} from {}", name, instance.borrow());
+                Instance::get(instance, name.extract_identifier_str()?)
+            }
+            _ => Err(LoxErr::Eval {
+                expr: expr.to_string(),
+                message: "Invalid call on non-instance value".to_string(),
+            }),
+        }
+    }
+
+    fn set(&mut self, name: &Token, target: &Expr, value: &Expr) -> Result<Value> {
+        match self.eval(target)? {
+            Literal::Instance(instance) => {
+                let val = self.eval(value)?;
+
+                trace!(
+                    "setting field: {}\nto: {}\non: {}",
+                    name,
+                    val,
+                    instance.borrow()
+                );
+                instance
+                    .borrow()
+                    .set(name.extract_identifier_str()?, val.to_owned());
+                trace!(
+                    "setting field Complete: {}\nto: {}\non: {}",
+                    name,
+                    val,
+                    instance.borrow()
+                );
+
+                trace!("curr scope: {}", &self.scope);
+                Ok(val)
+            }
+            _ => Err(LoxErr::Eval {
+                expr: target.to_string(),
+                message: "Only instances can be accessed via fields (`.`)".to_string(),
+            }),
+        }
     }
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<Value> {
@@ -282,7 +340,7 @@ impl ExprVisitor<Value> for Interpreter {
             _ => {
                 return Err(LoxErr::Eval {
                     expr: callee.to_string(),
-                    message: "Invalid call".to_string(),
+                    message: "Invalid call on non-func value".to_string(),
                 })
             }
         };
@@ -303,12 +361,29 @@ impl ExprVisitor<Value> for Interpreter {
 
         fun.call(self, args_eval)
     }
+
+    fn this(&mut self, expression: &Expr) -> Result<Value> {
+        if let ExprKind::This(this) = &expression.kind {
+            let str = this.extract_identifier_str()?;
+
+            let res = self.lookup_var(str, expression)?;
+            return Ok(res.clone());
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `var` code path, programmer error",
+                expression
+            ),
+        })
+    }
 }
 
 impl StmtVisitor for Interpreter {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         let res = match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Class(stmt) => self.class_stmt(stmt),
             Stmt::Return(stmt) => self.return_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
@@ -403,6 +478,44 @@ impl StmtVisitor for Interpreter {
             self.exec_stmt(&stmt.stmt)?;
             res = self.eval(&stmt.expr)?;
         }
+        Ok(None)
+    }
+
+    fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        let name = stmt.name.extract_identifier_str()?;
+        self.scope.define(name, Value::Nil);
+
+        let mut methods: HashMap<String, Function> = HashMap::new();
+
+        for method in stmt.methods.iter() {
+            match self.func(&method.def)? {
+                Value::Func(Func::Lox(func)) => {
+                    let method_name = method.name.extract_identifier_str()?;
+                    let is_initializer = method_name == "init";
+                    methods.insert(
+                        method_name.to_owned(),
+                        Function {
+                            is_initializer,
+                            ..func
+                        },
+                    );
+                }
+                _ => {
+                    return Err(LoxErr::Eval {
+                        expr: method.def.to_string(),
+                        message: "Expected a method definition within the class".to_owned(),
+                    })
+                }
+            }
+        }
+
+        self.scope.assign(
+            name,
+            Value::Func(Func::Class(Rc::new(Class {
+                name: name.to_owned(),
+                methods,
+            }))),
+        )?;
         Ok(None)
     }
 }

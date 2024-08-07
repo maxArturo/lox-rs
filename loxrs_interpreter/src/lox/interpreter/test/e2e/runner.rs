@@ -43,6 +43,12 @@ fn e2e_fail() {
 }
 
 #[test]
+fn spec_samples() {
+    let folder = get_test_folder();
+    traverse(&folder.join("samples/"), |res| res.is_ok());
+}
+
+#[test]
 fn spec_assignment() {
     let folder = get_test_folder();
     traverse(&folder.join("spec/assignment"), |res| res.is_ok());
@@ -70,4 +76,16 @@ fn spec_call() {
 fn spec_closure() {
     let folder = get_test_folder();
     traverse(&folder.join("spec/closure"), |res| res.is_ok());
+}
+
+#[test]
+fn spec_class() {
+    let folder = get_test_folder();
+    traverse(&folder.join("spec/class"), |res| res.is_ok());
+}
+
+#[test]
+fn spec_if() {
+    let folder = get_test_folder();
+    traverse(&folder.join("spec/if"), |res| res.is_ok());
 }

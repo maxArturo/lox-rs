@@ -1,4 +1,4 @@
-use crate::lox::entities::expr::ExprKind;
+use crate::lox::entities::{expr::ExprKind, stmt::StmtClass};
 
 use super::super::entities::{
     expr::{ExprFunction, ExprGrouping},
@@ -12,6 +12,8 @@ use std::rc::Rc;
 
 pub trait StmtVisitor {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>>;
+
+    fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>>;
 
     fn print_stmt(&mut self, stmt: &StmtPrint) -> Result<Option<Value>>;
 
@@ -42,7 +44,10 @@ pub trait ExprVisitor<T> {
             ExprKind::Function(func) => self.func(func.as_ref()),
             ExprKind::Literal(lit) => self.literal(lit.as_ref()),
             ExprKind::Var(_) => self.var(expr),
+            ExprKind::This(_) => self.this(expr),
             ExprKind::Assign(_) => self.assign(expr),
+            ExprKind::Get(get) => self.get(&get.name, &get.expr),
+            ExprKind::Set(set) => self.set(&set.name, &set.target, &set.value),
             ExprKind::Call(call) => self.call(&call.callee, &call.args),
         }
     }
@@ -59,7 +64,13 @@ pub trait ExprVisitor<T> {
 
     fn var(&mut self, expression: &Expr) -> Result<T>;
 
+    fn this(&mut self, expression: &Expr) -> Result<T>;
+
     fn assign(&mut self, expr: &Expr) -> Result<T>;
+
+    fn get(&mut self, name: &Token, expr: &Expr) -> Result<T>;
+
+    fn set(&mut self, name: &Token, expr: &Expr, value: &Expr) -> Result<T>;
 
     fn logical(&mut self, left: &Expr, right: &Expr, operator: &Token) -> Result<T>;
 

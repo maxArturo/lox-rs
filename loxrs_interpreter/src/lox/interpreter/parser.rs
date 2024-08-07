@@ -1,7 +1,8 @@
 use log::{error, trace};
 
 use crate::lox::entities::expr::{
-    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGrouping, ExprKind, ExprUnary,
+    ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGet, ExprGrouping, ExprKind, ExprSet,
+    ExprUnary,
 };
 use crate::lox::entities::stmt::{
     StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
@@ -98,10 +99,7 @@ impl Parser {
         None
     }
 
-    /*
-     * production rules
-     */
-
+    /// production rules
     pub fn parse(&mut self) -> Result<Vec<Stmt>> {
         let mut statements: Vec<Stmt> = vec![];
         while !self.is_at_end() {
@@ -115,7 +113,9 @@ impl Parser {
     fn stmt(&mut self) -> Option<Stmt> {
         let stmt;
         // declarations
-        if self.matches(&[TokenType::Fun]).is_some() && self.check(&TokenType::Identifier) {
+        if self.matches(&[TokenType::Class]).is_some() && self.check(&TokenType::Identifier) {
+            stmt = self.class_stmt();
+        } else if self.matches(&[TokenType::Fun]).is_some() && self.check(&TokenType::Identifier) {
             stmt = self.fun_stmt("function");
         } else if self.matches(&[TokenType::Var]).is_some() {
             stmt = self.var_stmt();
@@ -145,6 +145,33 @@ impl Parser {
                 None
             }
         }
+    }
+
+    fn class_stmt(&mut self) -> Result<Stmt> {
+        let name = self
+            .consume(
+                &TokenType::Identifier,
+                "Expected `identifier` after `class` keyword.",
+            )?
+            .to_owned();
+
+        self.consume(&TokenType::LeftBrace, "Expected `{{` before `class` body")?;
+
+        let mut methods: Vec<StmtFun> = Vec::new();
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            if let Ok(Stmt::Fun(s)) = self.fun_stmt("method") {
+                methods.push(s)
+            } else {
+                return Err(self.error(self.peek(), "Error in `class` statement body"));
+            }
+        }
+
+        self.consume(&TokenType::RightBrace, "Expected `}` after class body.")?;
+        Ok(Stmt::Class(crate::lox::entities::stmt::StmtClass {
+            name,
+            methods,
+        }))
     }
 
     fn while_stmt(&mut self) -> Result<Stmt> {
@@ -298,7 +325,7 @@ impl Parser {
 
         self.consume(
             &TokenType::LeftParen,
-            "Expected `(` after `fun` identifier.",
+            &format!("expected `(` after `{}` identifier", kind),
         )?;
 
         let mut params = vec![];
@@ -318,7 +345,7 @@ impl Parser {
                     });
                 }
                 params.push(
-                    self.consume(&TokenType::Identifier, "expected parameer name")?
+                    self.consume(&TokenType::Identifier, "expected parameter name")?
                         .clone(),
                 );
 
@@ -384,6 +411,13 @@ impl Parser {
                     return Ok(Expr::new(ExprKind::Assign(Box::new(ExprAssign {
                         name: token,
                         expression: val,
+                    }))))
+                }
+                ExprKind::Get(get) => {
+                    return Ok(Expr::new(ExprKind::Set(Box::new(ExprSet {
+                        name: get.name,
+                        target: get.expr,
+                        value: val,
                     }))))
                 }
                 _ => {
@@ -511,6 +545,15 @@ impl Parser {
         loop {
             if self.matches(&[TokenType::LeftParen]).is_some() {
                 expr = self.finish_call(expr)?;
+            } else if self.matches(&[TokenType::Dot]).is_some() {
+                let name = self.consume(
+                    &TokenType::Identifier,
+                    "expected identifier name after `.`.",
+                )?;
+                expr = Expr::new(ExprKind::Get(Box::new(ExprGet {
+                    name: name.clone(),
+                    expr,
+                })))
             } else {
                 break;
             }
@@ -568,6 +611,10 @@ impl Parser {
             return Ok(Expr::new(ExprKind::Literal(Box::new(Literal::Nil))));
         }
 
+        if let Some(token) = self.matches(&[TokenType::This]) {
+            return Ok(Expr::new(ExprKind::This(token.clone())));
+        }
+
         // handle string and num literals
         if let Some(token) = self.matches(&[TokenType::String, TokenType::Number]) {
             return Ok(Expr::new(ExprKind::Literal(Box::new(
@@ -584,7 +631,7 @@ impl Parser {
 
         if self.matches(&[TokenType::LeftParen]).is_some() {
             let inner_expr = self.expression()?;
-            self.consume(&TokenType::RightParen, "Expected ) after this token")?;
+            self.consume(&TokenType::RightParen, "Expected ) after current token")?;
             return Ok(Expr::new(ExprKind::Grouping(Box::new(ExprGrouping {
                 expression: inner_expr,
             }))));

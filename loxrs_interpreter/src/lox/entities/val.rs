@@ -1,6 +1,9 @@
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::rc::Rc;
 
+use super::class::Instance;
 use super::func::Func;
 
 /// Holds lox literal values
@@ -10,6 +13,7 @@ pub enum Literal {
     Number(f64),
     String(String),
     Func(Func),
+    Instance(Rc<RefCell<Instance>>),
     Nil,
 }
 
@@ -24,13 +28,15 @@ impl Display for Literal {
             Self::Func(func) => match func {
                 Func::Lox(_) => return write!(f, "[<function>{}]", func.name()),
                 Func::Native(_) => return write!(f, "[<native fn>{}]", func.name()),
+                Func::Class(class) => return write!(f, "{}", class),
             },
-            Self::Number(num) => {
-                return write!(f, "{}", num);
-            }
+            Self::Number(num) => return write!(f, "{}", num),
             Self::Nil => "Nil",
             Self::Boolean(bool) => {
                 return write!(f, "{}", bool);
+            }
+            Self::Instance(instance) => {
+                return write!(f, "{}", instance.borrow());
             }
         };
         write!(f, "{}", str_val)

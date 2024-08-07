@@ -57,6 +57,9 @@ pub enum ExprKind {
     Function(Box<ExprFunction>),
     Var(Token),
     Assign(Box<ExprAssign>),
+    Get(Box<ExprGet>),
+    Set(Box<ExprSet>),
+    This(Token),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -79,6 +82,19 @@ pub struct ExprCall {
     pub callee: Expr,
     pub paren: Token,
     pub args: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprGet {
+    pub name: Token,
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprSet {
+    pub name: Token,
+    pub target: Expr,
+    pub value: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -139,14 +155,20 @@ impl fmt::Display for ExprKind {
                     &logical.right
                 ),
                 Self::Literal(value) => format!("[<logical> {}]", value),
-                Self::Var(var) => var.literal.clone().map_or("None".to_string(), |t| format!(
-                    "[<var> line: {}, col: {}, name: {}]",
-                    var.line, var.column, t
-                )
-                .to_string()),
+                Self::Var(var) | Self::This(var) =>
+                    var.literal.clone().map_or("None".to_string(), |t| format!(
+                        "[<var> line: {}, col: {}, name: {}]",
+                        var.line, var.column, t
+                    )
+                    .to_string()),
                 Self::Assign(assign) => format!(
                     "[<assign> target: {}, expr: {}]",
                     assign.name, assign.expression
+                ),
+                Self::Get(get) => format!("[<get> target: {}, expr: {}]", get.name, get.expr),
+                Self::Set(set) => format!(
+                    "[<set> get expr: {}, target: {}, val: {}]",
+                    set.target, set.name, set.value
                 ),
             }
         )

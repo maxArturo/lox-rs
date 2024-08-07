@@ -1,22 +1,34 @@
+use super::class::Instance;
 use super::eval::Interpreter;
 use super::expr::ExprFunction;
-use super::{Token, Value};
+use super::{Class, Token, Value};
 use loxrs_env::Scope;
 use loxrs_types::Result;
+use std::cell::RefCell;
 use std::fmt::Result as fmt_result;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum FuncType {
     Function,
+    Method,
     None,
+    Initializer,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum ClassType {
+    #[default]
+    None,
+    Class,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Func {
     Lox(Function),
     Native(NativeFunction),
+    Class(Rc<Class>),
 }
 
 pub type FuncDefinition = fn(&mut Interpreter, Rc<Scope<Value>>) -> Result<Value>;
@@ -26,6 +38,7 @@ pub struct Function {
     pub def: ExprFunction,
     pub scope: Rc<Scope<Value>>,
     pub params: Vec<Token>,
+    pub is_initializer: bool,
 }
 
 impl Function {
@@ -36,11 +49,23 @@ impl Function {
     pub fn name(&self) -> &str {
         "<function>"
     }
+
+    pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Self {
+        let bind_scope = Scope::from_parent(Rc::clone(&self.scope));
+        bind_scope.define("this", Value::Instance(instance));
+
+        Function {
+            scope: bind_scope,
+            ..self.clone()
+        }
+    }
 }
 
 impl PartialEq for Function {
     fn eq(&self, other: &Self) -> bool {
-        std::cmp::PartialEq::eq(&self.def, &other.def) && Rc::eq(&self.scope, &other.scope)
+        self.def == other.def
+            && self.params == other.params
+            && self.is_initializer == other.is_initializer
     }
 }
 

@@ -3,9 +3,10 @@ use std::fmt::{Display, Formatter};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::lox::entities::expr::{ExprFunction, ExprKind};
-use crate::lox::entities::func::FuncType;
-use crate::lox::entities::Expr;
+use crate::lox::entities::func::{ClassType, FuncType};
+use crate::lox::entities::stmt::StmtClass;
 use crate::lox::entities::{eval::Interpreter, Token};
+use crate::lox::entities::{Expr, Literal};
 
 use super::visitor::StmtVisitor;
 use super::{
@@ -44,12 +45,9 @@ impl Display for VarStatus {
 #[derive(Debug)]
 pub struct Resolver {
     interpreter: Rc<RefCell<Interpreter>>,
-    // TODO here this needs to be changed into an enum
-    // and on `assign` it needs to be set to assigned
-    // when we pop a scope, any unassigned vars should be
-    // an error
     stack: Vec<HashMap<String, VarStatus>>,
     curr_function: FuncType,
+    curr_class: ClassType,
 }
 
 impl Display for Resolver {
@@ -73,18 +71,26 @@ impl Resolver {
             interpreter,
             stack: vec![],
             curr_function: FuncType::None,
+            curr_class: ClassType::default(),
         }
     }
 
-    fn resolve_fun_stmt(&mut self, stmt: &StmtFun) -> Result<Option<Value>> {
+    fn resolve_fun_stmt(&mut self, stmt: &StmtFun, func_type: FuncType) -> Result<Option<Value>> {
+        if func_type == FuncType::None {
+            return Err(LoxErr::Internal {
+                message: "Programmer error: cannot use `FuncType::None` within a function resolver"
+                    .to_owned(),
+            });
+        }
+
         trace!(
             "creating stack from fun stmt: {} with stack: {}",
             stmt,
             self,
         );
 
-        let prev_function_type = self.curr_function.clone();
-        self.curr_function = FuncType::Function;
+        let prev_function_type = self.curr_function;
+        self.curr_function = func_type;
 
         self.begin_scope();
 
@@ -138,6 +144,8 @@ impl Resolver {
             );
         }
 
+        // TODO check if this should return an error here instead,
+        // denoting a programmer error
         Ok(None)
     }
 
@@ -227,6 +235,7 @@ impl StmtVisitor for Resolver {
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>> {
         match stmt {
             Stmt::Print(stmt) => self.print_stmt(stmt),
+            Stmt::Class(stmt) => self.class_stmt(stmt),
             Stmt::Return(stmt) => self.return_stmt(stmt),
             Stmt::Expr(stmt) => self.eval_stmt(stmt),
             Stmt::Fun(stmt) => self.fun_stmt(stmt),
@@ -253,7 +262,21 @@ impl StmtVisitor for Resolver {
                     stmt.keyword.line, stmt.keyword.column,
                 ),
             }),
-            FuncType::Function => self.resolve_expr(&stmt.val),
+            FuncType::Initializer => {
+                if let ExprKind::Literal(lit) = &stmt.val.kind {
+                    if Literal::Nil == **lit {
+                        return self.resolve_expr(&stmt.val);
+                    }
+                }
+
+                Err(LoxErr::Resolve {
+                    message: format!(
+                        "Can't return a value from class initializer scope\n at line: {}, col: {}",
+                        stmt.keyword.line, stmt.keyword.column,
+                    ),
+                })
+            }
+            FuncType::Function | FuncType::Method => self.resolve_expr(&stmt.val),
         }
     }
 
@@ -275,7 +298,7 @@ impl StmtVisitor for Resolver {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
-        self.resolve_fun_stmt(stmt)
+        self.resolve_fun_stmt(stmt, FuncType::Function)
     }
 
     fn block_stmt(
@@ -313,11 +336,41 @@ impl StmtVisitor for Resolver {
         self.resolve_expr(&stmt.expr)?;
         self.resolve_stmt(&stmt.stmt)
     }
+
+    fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        let prev_class_type = self.curr_class;
+        self.curr_class = ClassType::Class;
+
+        self.declare(&stmt.name)?;
+        self.define(&stmt.name)?;
+        self.assign(&stmt.name)?;
+
+        // open implicit scope for `this` var
+        self.begin_scope();
+
+        self.stack
+            .last_mut()
+            .map(|scope| scope.insert("this".to_owned(), VarStatus::Assigned));
+
+        for fun in stmt.methods.iter() {
+            let func_type = if fun.name.extract_identifier_str()? == "init" {
+                FuncType::Initializer
+            } else {
+                FuncType::Method
+            };
+            self.resolve_fun_stmt(fun, func_type)?;
+        }
+
+        let res = self.end_scope();
+        self.curr_class = prev_class_type;
+
+        res
+    }
 }
 
 impl ExprVisitor<Option<Value>> for Resolver {
     fn func(&mut self, def: &ExprFunction) -> Result<Option<Value>> {
-        let prev_function_type = self.curr_function.clone();
+        let prev_function_type = self.curr_function;
         self.curr_function = FuncType::Function;
 
         self.begin_scope();
@@ -386,19 +439,6 @@ impl ExprVisitor<Option<Value>> for Resolver {
         })
     }
 
-    fn logical(&mut self, left: &Expr, right: &Expr, _operator: &Token) -> Result<Option<Value>> {
-        self.resolve_expr(left)?;
-        self.resolve_expr(right)
-    }
-
-    fn call(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<Value>> {
-        self.resolve_expr(callee)?;
-        for expr in args {
-            self.resolve_expr(expr)?;
-        }
-        Ok(None)
-    }
-
     fn assign(&mut self, expr: &Expr) -> Result<Option<Value>> {
         if let ExprKind::Assign(expr_assign) = &expr.kind {
             trace!(
@@ -420,6 +460,48 @@ impl ExprVisitor<Option<Value>> for Resolver {
             message: format!(
                 "{} not expected in `assign` code path, programmer error",
                 expr
+            ),
+        })
+    }
+
+    fn logical(&mut self, left: &Expr, right: &Expr, _operator: &Token) -> Result<Option<Value>> {
+        self.resolve_expr(left)?;
+        self.resolve_expr(right)
+    }
+
+    fn call(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<Value>> {
+        self.resolve_expr(callee)?;
+        for expr in args {
+            self.resolve_expr(expr)?;
+        }
+        Ok(None)
+    }
+
+    fn get(&mut self, _name: &Token, expr: &Expr) -> Result<Option<Value>> {
+        self.resolve_expr(expr)
+    }
+
+    fn set(&mut self, _name: &Token, expr: &Expr, value: &Expr) -> Result<Option<Value>> {
+        self.resolve_expr(expr)?;
+        self.resolve_expr(value)
+    }
+
+    fn this(&mut self, expression: &Expr) -> Result<Option<Value>> {
+        if self.curr_class == ClassType::None {
+            return Err(LoxErr::Resolve {
+                message: "Can't use the `this` keyword outside a class statement.".to_owned(),
+            });
+        }
+
+        if let ExprKind::This(this) = &expression.kind {
+            trace!("resolving to locals from `this` expr: {}", this);
+            return self.resolve_local(expression, this.extract_identifier_str()?, true);
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `this` code path, programmer error",
+                expression
             ),
         })
     }

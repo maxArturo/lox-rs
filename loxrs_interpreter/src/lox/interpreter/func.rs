@@ -5,7 +5,7 @@ use loxrs_env::Scope;
 use loxrs_types::Result;
 
 use crate::lox::{
-    entities::{eval::Interpreter, func::Func, Value},
+    entities::{class::Instance, eval::Interpreter, func::Func, Value},
     interpreter::visitor::StmtVisitor,
 };
 
@@ -28,12 +28,16 @@ impl Func {
                     e.name(),
                     scope,
                 );
-                interpreter
+                let res = interpreter
                     .block_stmt(&e.def.body, scope)
                     .map(|el| match el {
                         Some(val) => val,
                         None => Value::Nil,
-                    })
+                    });
+                if e.is_initializer {
+                    return e.scope.get_at(0, "this");
+                }
+                res
             }
             Func::Native(e) => {
                 let scope = Scope::from_parent(Rc::clone(&e.scope));
@@ -43,6 +47,14 @@ impl Func {
 
                 (e.def)(interpreter, scope)
             }
+            Func::Class(class) => {
+                let instance = Instance::new(Rc::clone(class));
+                if let Some(init) = class.find_method("init") {
+                    let mut init_func = Func::Lox(init.bind(Rc::clone(&instance)));
+                    init_func.call(interpreter, args)?;
+                }
+                Ok(Value::Instance(instance))
+            }
         }
     }
 
@@ -50,6 +62,7 @@ impl Func {
         match self {
             Func::Lox(e) => e.arity(),
             Func::Native(e) => e.arity(),
+            Func::Class(class) => class.find_method("init").map(|f| f.arity()).unwrap_or(0),
         }
     }
 
@@ -57,6 +70,7 @@ impl Func {
         match self {
             Func::Lox(e) => e.name(),
             Func::Native(e) => e.name(),
+            Func::Class(e) => &e.name,
         }
     }
 }
