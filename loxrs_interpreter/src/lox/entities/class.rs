@@ -9,6 +9,7 @@ use super::{
 #[derive(Clone, PartialEq, Debug)]
 pub struct Class {
     pub name: String,
+    pub superclass: Option<Rc<Class>>,
     pub methods: HashMap<String, Function>,
 }
 
@@ -20,7 +21,9 @@ impl Display for Class {
 
 impl Class {
     pub fn find_method(&self, name: &str) -> Option<&Function> {
-        self.methods.get(name)
+        self.methods
+            .get(name)
+            .or_else(|| self.superclass.as_ref().and_then(|s| s.find_method(name)))
     }
 }
 
@@ -41,14 +44,14 @@ impl Instance {
     }
 
     pub fn get(instance: InstanceRef, key: &str) -> LoxRes<Value> {
-        let binding = instance.borrow();
-        let fields = binding.fields.borrow();
+        let binding = instance.as_ref().borrow();
+        let fields = binding.fields.as_ref().borrow();
 
         if fields.contains_key(key) {
             return Ok(fields.get(key).unwrap_or(&Value::Nil).clone());
         }
 
-        match instance.borrow().class.find_method(key) {
+        match instance.as_ref().borrow().class.find_method(key) {
             Some(method) => Ok(Value::Func(Func::Lox(method.bind(Rc::clone(&instance))))),
             None => Err(LoxErr::Undefined {
                 message: format!("undefined property: {}", key),

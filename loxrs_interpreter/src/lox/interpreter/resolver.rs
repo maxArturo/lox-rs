@@ -345,6 +345,30 @@ impl StmtVisitor for Resolver {
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
 
+        if let Some(expr) = &stmt.superclass {
+            match expr {
+                Expr {
+                    kind: ExprKind::Var(var),
+                    ..
+                } => {
+                    if var.extract_identifier_str()? == stmt.name.extract_identifier_str()? {
+                        return Err(LoxErr::Resolve {
+                            message: "classes cannot inherit from themselves".to_owned(),
+                        });
+                    }
+                    self.resolve_expr(expr)?;
+                }
+                _ => {
+                    return Err(LoxErr::Internal {
+                        message: format!(
+                            "{} not expected in `var` code path, programmer error",
+                            expr
+                        ),
+                    })
+                }
+            }
+        }
+
         // open implicit scope for `this` var
         self.begin_scope();
 

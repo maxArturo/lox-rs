@@ -20,6 +20,7 @@ type StmtB = Box<Stmt>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtClass {
     pub name: Token,
+    pub superclass: Option<Expr>,
     pub methods: Vec<StmtFun>,
 }
 

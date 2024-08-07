@@ -482,6 +482,21 @@ impl StmtVisitor for Interpreter {
     }
 
     fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        let mut superclass = None;
+        if let Some(expr) = &stmt.superclass {
+            match self.eval(expr)? {
+                Value::Func(Func::Class(class)) => {
+                    superclass = Some(Rc::clone(&class));
+                }
+                _ => {
+                    return Err(LoxErr::Eval {
+                        expr: expr.to_string(),
+                        message: "Superclass must be a class".to_owned(),
+                    })
+                }
+            }
+        }
+
         let name = stmt.name.extract_identifier_str()?;
         self.scope.define(name, Value::Nil);
 
@@ -512,6 +527,7 @@ impl StmtVisitor for Interpreter {
         self.scope.assign(
             name,
             Value::Func(Func::Class(Rc::new(Class {
+                superclass,
                 name: name.to_owned(),
                 methods,
             }))),

@@ -5,7 +5,7 @@ use crate::lox::entities::expr::{
     ExprUnary,
 };
 use crate::lox::entities::stmt::{
-    StmtBlock, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
+    StmtBlock, StmtClass, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
 };
 use crate::lox::entities::{Expr, Literal, Stmt, Token, TokenType, Value};
 
@@ -155,6 +155,18 @@ impl Parser {
             )?
             .to_owned();
 
+        let mut superclass = None;
+
+        if self.matches(&[TokenType::Less]).is_some() {
+            superclass = Some(
+                self.consume(
+                    &TokenType::Identifier,
+                    "Expected identifier after superclass `<` character.",
+                )?
+                .clone(),
+            );
+        }
+
         self.consume(&TokenType::LeftBrace, "Expected `{{` before `class` body")?;
 
         let mut methods: Vec<StmtFun> = Vec::new();
@@ -168,9 +180,10 @@ impl Parser {
         }
 
         self.consume(&TokenType::RightBrace, "Expected `}` after class body.")?;
-        Ok(Stmt::Class(crate::lox::entities::stmt::StmtClass {
+        Ok(Stmt::Class(StmtClass {
             name,
             methods,
+            superclass: superclass.map(|e| Expr::new(ExprKind::Var(e))),
         }))
     }
 
