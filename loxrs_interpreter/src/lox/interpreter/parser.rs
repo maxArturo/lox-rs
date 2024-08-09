@@ -725,8 +725,4 @@ impl Parser {
             }),
         }
     }
-
-    // fn super(&mut self) -> Result<Expr> {
-    //
-    // }
 }

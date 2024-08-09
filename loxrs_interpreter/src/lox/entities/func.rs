@@ -22,6 +22,7 @@ pub enum ClassType {
     #[default]
     None,
     Class,
+    SubClass,
 }
 
 #[derive(Clone, PartialEq, Debug)]

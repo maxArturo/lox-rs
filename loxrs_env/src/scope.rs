@@ -55,6 +55,12 @@ impl<T: Display + Clone> Scope<T> {
     }
 
     pub fn define(&self, name: &str, val: T) {
+        trace!("[define] current env:\n{}", self);
+        trace!(
+            "[define] inserting to current env: name=[{}], value=[{}]",
+            name,
+            val
+        );
         self.values.borrow_mut().insert(name.to_string(), val);
     }
 

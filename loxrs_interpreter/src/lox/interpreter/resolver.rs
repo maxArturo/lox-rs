@@ -357,6 +357,7 @@ impl StmtVisitor for Resolver {
                             message: "classes cannot inherit from themselves".to_owned(),
                         });
                     }
+                    self.curr_class = ClassType::SubClass;
                     self.resolve_expr(expr)?;
 
                     // open superclass scope for class methods
@@ -542,23 +543,26 @@ impl ExprVisitor<Option<Value>> for Resolver {
     }
 
     fn super_expr(&mut self, def: &Expr) -> Result<Option<Value>> {
-        // TODO make sure you are in a subclassed class
-        // if self.curr_class == ClassType::None {
-        //     return Err(LoxErr::Resolve {
-        //         message: "Can't use the `this` keyword outside a class statement.".to_owned(),
-        //     });
-        // }
+        match self.curr_class {
+            ClassType::None => Err(LoxErr::Resolve {
+                message: "Can't use the `super` keyword outside a class statement.".to_owned(),
+            }),
+            ClassType::Class => Err(LoxErr::Resolve {
+                message: "Can't use the `super` keyword in a class without subclass.".to_owned(),
+            }),
+            ClassType::SubClass => {
+                if let ExprKind::Super(_) = def.kind {
+                    trace!("resolving to locals from `super` expr: {}", def);
+                    return self.resolve_local(def, "super", true);
+                }
 
-        if let ExprKind::Super(_) = def.kind {
-            trace!("resolving to locals from `super` expr: {}", def);
-            return self.resolve_local(def, "super", true);
+                Err(LoxErr::Internal {
+                    message: format!(
+                        "{} not expected in `super` code path, programmer error",
+                        def
+                    ),
+                })
+            }
         }
-
-        Err(LoxErr::Internal {
-            message: format!(
-                "{} not expected in `super` code path, programmer error",
-                def
-            ),
-        })
     }
 }

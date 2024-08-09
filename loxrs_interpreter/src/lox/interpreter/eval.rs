@@ -54,6 +54,27 @@ impl Interpreter {
                 "time",
             ))),
         );
+
+        scope.define(
+            "assert",
+            Value::Func(Func::Native(NativeFunction::new(
+                |_interpreter, scope| {
+                    let assertion = scope.get("assertion")?;
+
+                    if assertion == Value::Boolean(true) {
+                        return Ok(assertion);
+                    }
+
+                    Err(LoxErr::Eval {
+                        expr: assertion.to_string(),
+                        message: "assertion failed".to_owned(),
+                    })
+                },
+                Rc::clone(&scope),
+                &["assertion".to_owned()],
+                "assert",
+            ))),
+        );
         scope
     }
 
@@ -519,8 +540,12 @@ impl StmtVisitor for Interpreter {
     }
 
     fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
+        let name = stmt.name.extract_identifier_str()?;
+        self.scope.define(name, Value::Nil);
+
         let mut superclass = None;
         let mut prev_scope = None;
+
         if let Some(expr) = &stmt.superclass {
             match self.eval(expr)? {
                 Value::Func(Func::Class(class)) => {
@@ -542,9 +567,6 @@ impl StmtVisitor for Interpreter {
                 .define("super", Value::Func(Func::Class(Rc::clone(sup))));
             prev_scope = Some(prev);
         }
-
-        let name = stmt.name.extract_identifier_str()?;
-        self.scope.define(name, Value::Nil);
 
         let mut methods: HashMap<String, Function> = HashMap::new();
 
