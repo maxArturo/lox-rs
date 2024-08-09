@@ -2,7 +2,7 @@
 
 A quick n dirty implementation of the Lox language, according to the book [Crafting Interpreters](https://craftinginterpreters.com/) in rust.
 
-This is my cutting-teeth intro to Rust, from real code and first principles. All omissions and errors are mine.
+However, this doesn't mean its quick (compilers certainly aren't!) or dirty (Rust won't allow it, and also all the tests according to Munificent's spec pass). This is my cutting-teeth intro to Rust, from real code and first principles. All omissions and errors are mine.
 
 The code samples (which are also e2e tests) are located [here](./loxrs_interpreter/src/lox/interpreter/test/e2e/). There are examples of both valid and invalid `lox` code.
 
@@ -23,3 +23,5 @@ Running the `loxrs_interpreter/src/lox/interpreter/test/e2e/spec/benchmark/fib.l
 ==> true
 ==> 189.5220010280609
 ```
+
+The bytecode interpreter ought to be much faster.
