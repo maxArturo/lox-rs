@@ -49,8 +49,11 @@ pub trait ExprVisitor<T> {
             ExprKind::Get(get) => self.get(&get.name, &get.expr),
             ExprKind::Set(set) => self.set(&set.name, &set.target, &set.value),
             ExprKind::Call(call) => self.call(&call.callee, &call.args),
+            ExprKind::Super(_) => self.super_expr(expr),
         }
     }
+
+    fn super_expr(&mut self, def: &Expr) -> Result<T>;
 
     fn func(&mut self, def: &ExprFunction) -> Result<T>;
 

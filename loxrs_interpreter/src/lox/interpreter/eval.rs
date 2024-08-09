@@ -54,6 +54,27 @@ impl Interpreter {
                 "time",
             ))),
         );
+
+        scope.define(
+            "assert",
+            Value::Func(Func::Native(NativeFunction::new(
+                |_interpreter, scope| {
+                    let assertion = scope.get("assertion")?;
+
+                    if assertion == Value::Boolean(true) {
+                        return Ok(assertion);
+                    }
+
+                    Err(LoxErr::Eval {
+                        expr: assertion.to_string(),
+                        message: "assertion failed".to_owned(),
+                    })
+                },
+                Rc::clone(&scope),
+                &["assertion".to_owned()],
+                "assert",
+            ))),
+        );
         scope
     }
 
@@ -207,7 +228,7 @@ impl ExprVisitor<Value> for Interpreter {
                 _ => bin_err(),
             },
             TokenType::BangEqual => Ok(Value::Boolean(left_val != right_val)),
-            // TODO this errors out when comparing instances... probably classes too
+
             TokenType::EqualEqual => Ok(Value::Boolean(left_val == right_val)),
             _ => bin_err(),
         }
@@ -372,8 +393,45 @@ impl ExprVisitor<Value> for Interpreter {
 
         Err(LoxErr::Internal {
             message: format!(
-                "{} not expected in `var` code path, programmer error",
+                "{} not expected in `this` expr code path, programmer error",
                 expression
+            ),
+        })
+    }
+
+    fn super_expr(&mut self, def: &Expr) -> Result<Value> {
+        if let ExprKind::Super(sup) = &def.kind {
+            if let Some(distance) = self.locals.borrow().get(def) {
+                if let Value::Func(Func::Class(superclass)) =
+                    self.scope.get_at(*distance, "super")?
+                {
+                    let method_name = sup.method.extract_identifier_str()?;
+                    if let Some(method) = superclass.find_method(method_name) {
+                        if let Value::Instance(this) = self.scope.get_at(*distance - 1, "this")? {
+                            return Ok(Value::Func(Func::Lox(method.bind(this))));
+                        }
+                        return Err(LoxErr::Eval {
+                            expr: self.scope.to_string(),
+                            message: "`this` not a Lox instance in scope".to_owned(),
+                        });
+                    }
+                    return Err(LoxErr::Eval {
+                        expr: superclass.to_string(),
+                        message: format!("method name {method_name} not found in superclass"),
+                    });
+                }
+                return Err(LoxErr::Internal {
+                    message: format!("`super` value not a class in scope: {},", self.scope),
+                });
+
+                // return Literal
+            }
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `super` code path, programmer error",
+                def
             ),
         })
     }
@@ -485,6 +543,31 @@ impl StmtVisitor for Interpreter {
         let name = stmt.name.extract_identifier_str()?;
         self.scope.define(name, Value::Nil);
 
+        let mut superclass = None;
+        let mut prev_scope = None;
+
+        if let Some(expr) = &stmt.superclass {
+            match self.eval(expr)? {
+                Value::Func(Func::Class(class)) => {
+                    superclass = Some(Rc::clone(&class));
+                }
+                _ => {
+                    return Err(LoxErr::Eval {
+                        expr: expr.to_string(),
+                        message: "Superclass must be a class".to_owned(),
+                    })
+                }
+            }
+        }
+        // set enclosing scope for superclass
+        if let Some(sup) = superclass.as_ref() {
+            let prev = Rc::clone(&self.scope);
+            self.scope = Scope::from_parent(prev.clone());
+            self.scope
+                .define("super", Value::Func(Func::Class(Rc::clone(sup))));
+            prev_scope = Some(prev);
+        }
+
         let mut methods: HashMap<String, Function> = HashMap::new();
 
         for method in stmt.methods.iter() {
@@ -509,9 +592,14 @@ impl StmtVisitor for Interpreter {
             }
         }
 
+        if let Some(prev) = prev_scope {
+            self.scope = prev;
+        }
+
         self.scope.assign(
             name,
             Value::Func(Func::Class(Rc::new(Class {
+                superclass,
                 name: name.to_owned(),
                 methods,
             }))),

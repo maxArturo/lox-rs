@@ -345,6 +345,39 @@ impl StmtVisitor for Resolver {
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
 
+        let mut superclass_scope = false;
+        if let Some(expr) = &stmt.superclass {
+            match expr {
+                Expr {
+                    kind: ExprKind::Var(var),
+                    ..
+                } => {
+                    if var.extract_identifier_str()? == stmt.name.extract_identifier_str()? {
+                        return Err(LoxErr::Resolve {
+                            message: "classes cannot inherit from themselves".to_owned(),
+                        });
+                    }
+                    self.curr_class = ClassType::SubClass;
+                    self.resolve_expr(expr)?;
+
+                    // open superclass scope for class methods
+                    superclass_scope = true;
+                    self.begin_scope();
+                    self.stack
+                        .last_mut()
+                        .map(|scope| scope.insert("super".to_owned(), VarStatus::Assigned));
+                }
+                _ => {
+                    return Err(LoxErr::Internal {
+                        message: format!(
+                            "{} not expected in `super` resolver code path, programmer error",
+                            expr
+                        ),
+                    })
+                }
+            }
+        }
+
         // open implicit scope for `this` var
         self.begin_scope();
 
@@ -359,6 +392,10 @@ impl StmtVisitor for Resolver {
                 FuncType::Method
             };
             self.resolve_fun_stmt(fun, func_type)?;
+        }
+
+        if superclass_scope {
+            self.end_scope()?;
         }
 
         let res = self.end_scope();
@@ -452,7 +489,6 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 expr_assign.name,
                 expr
             );
-            // TODO need to set assigned here too
             return self.resolve_local(expr, expr_assign.name.extract_identifier_str()?, true);
         }
 
@@ -504,5 +540,29 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 expression
             ),
         })
+    }
+
+    fn super_expr(&mut self, def: &Expr) -> Result<Option<Value>> {
+        match self.curr_class {
+            ClassType::None => Err(LoxErr::Resolve {
+                message: "Can't use the `super` keyword outside a class statement.".to_owned(),
+            }),
+            ClassType::Class => Err(LoxErr::Resolve {
+                message: "Can't use the `super` keyword in a class without subclass.".to_owned(),
+            }),
+            ClassType::SubClass => {
+                if let ExprKind::Super(_) = def.kind {
+                    trace!("resolving to locals from `super` expr: {}", def);
+                    return self.resolve_local(def, "super", true);
+                }
+
+                Err(LoxErr::Internal {
+                    message: format!(
+                        "{} not expected in `super` code path, programmer error",
+                        def
+                    ),
+                })
+            }
+        }
     }
 }
