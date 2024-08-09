@@ -345,6 +345,7 @@ impl StmtVisitor for Resolver {
         self.define(&stmt.name)?;
         self.assign(&stmt.name)?;
 
+        let mut superclass_scope = false;
         if let Some(expr) = &stmt.superclass {
             match expr {
                 Expr {
@@ -357,11 +358,18 @@ impl StmtVisitor for Resolver {
                         });
                     }
                     self.resolve_expr(expr)?;
+
+                    // open superclass scope for class methods
+                    superclass_scope = true;
+                    self.begin_scope();
+                    self.stack
+                        .last_mut()
+                        .map(|scope| scope.insert("super".to_owned(), VarStatus::Assigned));
                 }
                 _ => {
                     return Err(LoxErr::Internal {
                         message: format!(
-                            "{} not expected in `var` code path, programmer error",
+                            "{} not expected in `super` resolver code path, programmer error",
                             expr
                         ),
                     })
@@ -383,6 +391,10 @@ impl StmtVisitor for Resolver {
                 FuncType::Method
             };
             self.resolve_fun_stmt(fun, func_type)?;
+        }
+
+        if superclass_scope {
+            self.end_scope()?;
         }
 
         let res = self.end_scope();
@@ -476,7 +488,6 @@ impl ExprVisitor<Option<Value>> for Resolver {
                 expr_assign.name,
                 expr
             );
-            // TODO need to set assigned here too
             return self.resolve_local(expr, expr_assign.name.extract_identifier_str()?, true);
         }
 
@@ -526,6 +537,27 @@ impl ExprVisitor<Option<Value>> for Resolver {
             message: format!(
                 "{} not expected in `this` code path, programmer error",
                 expression
+            ),
+        })
+    }
+
+    fn super_expr(&mut self, def: &Expr) -> Result<Option<Value>> {
+        // TODO make sure you are in a subclassed class
+        // if self.curr_class == ClassType::None {
+        //     return Err(LoxErr::Resolve {
+        //         message: "Can't use the `this` keyword outside a class statement.".to_owned(),
+        //     });
+        // }
+
+        if let ExprKind::Super(_) = def.kind {
+            trace!("resolving to locals from `super` expr: {}", def);
+            return self.resolve_local(def, "super", true);
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `super` code path, programmer error",
+                def
             ),
         })
     }

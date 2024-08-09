@@ -207,7 +207,7 @@ impl ExprVisitor<Value> for Interpreter {
                 _ => bin_err(),
             },
             TokenType::BangEqual => Ok(Value::Boolean(left_val != right_val)),
-            // TODO this errors out when comparing instances... probably classes too
+
             TokenType::EqualEqual => Ok(Value::Boolean(left_val == right_val)),
             _ => bin_err(),
         }
@@ -372,8 +372,45 @@ impl ExprVisitor<Value> for Interpreter {
 
         Err(LoxErr::Internal {
             message: format!(
-                "{} not expected in `var` code path, programmer error",
+                "{} not expected in `this` expr code path, programmer error",
                 expression
+            ),
+        })
+    }
+
+    fn super_expr(&mut self, def: &Expr) -> Result<Value> {
+        if let ExprKind::Super(sup) = &def.kind {
+            if let Some(distance) = self.locals.borrow().get(def) {
+                if let Value::Func(Func::Class(superclass)) =
+                    self.scope.get_at(*distance, "super")?
+                {
+                    let method_name = sup.method.extract_identifier_str()?;
+                    if let Some(method) = superclass.find_method(method_name) {
+                        if let Value::Instance(this) = self.scope.get_at(*distance - 1, "this")? {
+                            return Ok(Value::Func(Func::Lox(method.bind(this))));
+                        }
+                        return Err(LoxErr::Eval {
+                            expr: self.scope.to_string(),
+                            message: "`this` not a Lox instance in scope".to_owned(),
+                        });
+                    }
+                    return Err(LoxErr::Eval {
+                        expr: superclass.to_string(),
+                        message: format!("method name {method_name} not found in superclass"),
+                    });
+                }
+                return Err(LoxErr::Internal {
+                    message: format!("`super` value not a class in scope: {},", self.scope),
+                });
+
+                // return Literal
+            }
+        }
+
+        Err(LoxErr::Internal {
+            message: format!(
+                "{} not expected in `super` code path, programmer error",
+                def
             ),
         })
     }
@@ -483,6 +520,7 @@ impl StmtVisitor for Interpreter {
 
     fn class_stmt(&mut self, stmt: &StmtClass) -> Result<Option<Value>> {
         let mut superclass = None;
+        let mut prev_scope = None;
         if let Some(expr) = &stmt.superclass {
             match self.eval(expr)? {
                 Value::Func(Func::Class(class)) => {
@@ -495,6 +533,14 @@ impl StmtVisitor for Interpreter {
                     })
                 }
             }
+        }
+        // set enclosing scope for superclass
+        if let Some(sup) = superclass.as_ref() {
+            let prev = Rc::clone(&self.scope);
+            self.scope = Scope::from_parent(prev.clone());
+            self.scope
+                .define("super", Value::Func(Func::Class(Rc::clone(sup))));
+            prev_scope = Some(prev);
         }
 
         let name = stmt.name.extract_identifier_str()?;
@@ -522,6 +568,10 @@ impl StmtVisitor for Interpreter {
                     })
                 }
             }
+        }
+
+        if let Some(prev) = prev_scope {
+            self.scope = prev;
         }
 
         self.scope.assign(

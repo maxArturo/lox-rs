@@ -60,6 +60,13 @@ pub enum ExprKind {
     Get(Box<ExprGet>),
     Set(Box<ExprSet>),
     This(Token),
+    Super(Box<ExprSuper>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprSuper {
+    pub keyword: Token,
+    pub method: Token,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -169,6 +176,10 @@ impl fmt::Display for ExprKind {
                 Self::Set(set) => format!(
                     "[<set> get expr: {}, target: {}, val: {}]",
                     set.target, set.name, set.value
+                ),
+                Self::Super(super_expr) => format!(
+                    "[<super> keyword: {}, method: {}]",
+                    super_expr.keyword, super_expr.method
                 ),
             }
         )

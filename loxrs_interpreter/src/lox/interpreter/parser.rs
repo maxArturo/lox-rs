@@ -2,7 +2,7 @@ use log::{error, trace};
 
 use crate::lox::entities::expr::{
     ExprAssign, ExprBinary, ExprCall, ExprFunction, ExprGet, ExprGrouping, ExprKind, ExprSet,
-    ExprUnary,
+    ExprSuper, ExprUnary,
 };
 use crate::lox::entities::stmt::{
     StmtBlock, StmtClass, StmtExpr, StmtFun, StmtIf, StmtPrint, StmtReturn, StmtVar, StmtWhile,
@@ -624,6 +624,22 @@ impl Parser {
             return Ok(Expr::new(ExprKind::Literal(Box::new(Literal::Nil))));
         }
 
+        if let Some(token) = self.matches(&[TokenType::Super]) {
+            let keyword = token.clone();
+
+            self.consume(&TokenType::Dot, "Expected `.` after `super` token")?;
+
+            return Ok(Expr::new(ExprKind::Super(Box::new(ExprSuper {
+                keyword,
+                method: self
+                    .consume(
+                        &TokenType::Identifier,
+                        "Expected an identifier after `super.`",
+                    )?
+                    .clone(),
+            }))));
+        }
+
         if let Some(token) = self.matches(&[TokenType::This]) {
             return Ok(Expr::new(ExprKind::This(token.clone())));
         }
@@ -709,4 +725,8 @@ impl Parser {
             }),
         }
     }
+
+    // fn super(&mut self) -> Result<Expr> {
+    //
+    // }
 }
