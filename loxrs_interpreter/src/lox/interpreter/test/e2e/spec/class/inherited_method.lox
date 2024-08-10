@@ -1,0 +1,22 @@
+class Foo {
+  inFoo() {
+    return "in foo";
+  }
+}
+
+class Bar < Foo {
+  inBar() {
+    return "in bar";
+  }
+}
+
+class Baz < Bar {
+  inBaz() {
+    return "in baz";
+  }
+}
+
+var baz = Baz();
+assert(baz.inFoo() == "in foo");
+assert(baz.inBar() == "in bar");
+assert(baz.inBaz() == "in baz");

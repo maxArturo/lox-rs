@@ -3,11 +3,11 @@ var f;
 class Foo {
   method(param) {
     fun f_() {
-      print param;
+      return param;
     }
     f = f_;
   }
 }
 
 Foo().method("param");
-f(); // expect: param
+assert(f() == "param"); 

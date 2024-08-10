@@ -1,0 +1,13 @@
+class Box {}
+
+fun notMethod(argument) {
+  return "called function with " + argument;
+}
+
+var box = Box();
+box.function = notMethod;
+assert(box.function("argument") == "called function with argument");
+
+var something = box.function;
+assert(something("foo") == "called function with foo");
+
