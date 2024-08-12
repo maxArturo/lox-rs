@@ -1,4 +1,4 @@
 [workspace]
-members = [ "loxrs_env", "loxrs_interpreter", "loxrs_types"]
+members = [ "loxrs_env", "loxrs_interpreter", "loxrs_types" , "loxrs_vm"]
 resolver = "2"
 
