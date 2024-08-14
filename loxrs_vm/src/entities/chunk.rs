@@ -1,40 +1,63 @@
-use std::fmt::Display;
+use arrayvec::ArrayVec;
 
-use super::{opcode::Opcode, value::Value};
+use crate::{
+    config::MAX_CONST_POOL,
+    error::{OverflowError, Result},
+};
 
-#[derive(Debug)]
+use super::{opcode, value::Value};
+
+#[derive(Debug, Default)]
 pub struct Chunk {
-    code: Vec<Opcode>,
-    constants: Vec<Value>,
+    code: Vec<u8>,
+    constants: ArrayVec<Value, MAX_CONST_POOL>,
 }
 
 impl Chunk {
     pub fn new() -> Self {
         Chunk {
             code: vec![],
-            constants: vec![],
+            constants: ArrayVec::new(),
         }
     }
 
-    pub fn write_chunk(&mut self, opcode: Opcode) {
+    pub fn write_chunk(&mut self, opcode: u8) {
         self.code.push(opcode)
     }
 
-    pub fn add_constant(&mut self, val: Value) -> usize {
+    pub fn add_constant(&mut self, val: Value) -> Result<u8> {
         self.constants.push(val);
-        self.constants.len() - 1
+        (self.constants.len() - 1)
+            .try_into()
+            .map_err(|_| OverflowError::ExceedsConstSize(MAX_CONST_POOL).into())
     }
-}
 
-impl Display for Chunk {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Chunk");
-        for (index, opcode) in self.code.iter().enumerate() {
-            ds.field(&format!("{:04}", index), opcode);
+    fn display_op(&self, idx: usize) -> usize {
+        match self.code[idx] {
+            opcode::RETURN => self.display_op_simple("OP_RETURN", idx),
+            opcode::CONSTANT => self.display_op_one_operand("OP_CONSTANT", idx),
+            _byte => self.display_op_simple("OP_UNKNOWN", idx),
         }
-        for (index, val) in self.constants.iter().enumerate() {
-            ds.field(&format!("constant {}", index), val);
+    }
+
+    fn display_op_simple(&self, name: &str, idx: usize) -> usize {
+        eprintln!("{idx:4}: {name:16}");
+        idx + 1
+    }
+
+    fn display_op_one_operand(&self, name: &str, idx: usize) -> usize {
+        let const_idx = self.code[idx + 1];
+        let byte = &self.constants[const_idx as usize];
+        eprintln!("{idx:4}: {name:16} -> {:?}", byte);
+        idx + 2
+    }
+
+    pub fn debug(&self) {
+        eprintln!("Chunk");
+
+        let mut idx = 0;
+        while idx < self.code.len() {
+            idx = self.display_op(idx);
         }
-        ds.finish()
     }
 }

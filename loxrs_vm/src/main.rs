@@ -1,13 +1,14 @@
+mod config;
 mod entities;
+mod error;
 
-use entities::opcode::Opcode;
-
-use crate::entities::{chunk::Chunk, value::Value};
+use crate::entities::{chunk::Chunk, opcode, value::Value};
 fn main() {
     let mut test_chunk = Chunk::new();
-    let idx = test_chunk.add_constant(Value::Double(1.3));
-    test_chunk.write_chunk(Opcode::Constant(idx));
-    test_chunk.write_chunk(Opcode::Return);
+    let idx = test_chunk.add_constant(Value::from(1.2)).unwrap();
+    test_chunk.write_chunk(opcode::CONSTANT);
+    test_chunk.write_chunk(idx);
+    test_chunk.write_chunk(opcode::RETURN);
 
-    println!("{}", test_chunk);
+    test_chunk.debug();
 }

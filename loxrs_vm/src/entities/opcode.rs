@@ -1,7 +1,6 @@
-use strum_macros::Display;
+use iota::iota;
 
-#[derive(Debug, Display)]
-pub enum Opcode {
-    Return,
-    Constant(usize),
+iota! {
+    pub const RETURN: u8 = iota;,
+    CONSTANT
 }
