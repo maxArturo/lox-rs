@@ -2,10 +2,12 @@ use std::fmt::Display;
 
 use thiserror::Error;
 
-pub type Result<T, U = Error> = std::result::Result<T, U>;
+use codespan_reporting::files::SimpleFiles;
+
+pub type Result<T, U = LoxError> = std::result::Result<T, U>;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum LoxError {
     OverflowError(OverflowError),
 }
 
@@ -17,7 +19,7 @@ pub enum OverflowError {
 
 // pre-span solution just display
 // TODO update when a spanning solution is implemented
-impl Display for Error {
+impl Display for LoxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -25,9 +27,9 @@ impl Display for Error {
 
 macro_rules! from_err {
     ($($err:tt),+) => {$(
-        impl From<$err> for Error {
-            fn from(e: $err) -> Error{
-                Error::$err(e)
+        impl From<$err> for LoxError {
+            fn from(e: $err) -> LoxError{
+                LoxError::$err(e)
             }
         })+
     };
