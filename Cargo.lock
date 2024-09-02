@@ -241,7 +241,9 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "codespan-reporting",
+ "env_logger",
  "iota",
+ "log",
  "thiserror",
 ]
 

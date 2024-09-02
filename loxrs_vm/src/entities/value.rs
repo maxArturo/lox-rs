@@ -1,3 +1,4 @@
+use crate::error::{ConversionError, Result};
 use std::{fmt::Display, mem};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -21,6 +22,13 @@ impl Value {
 
     pub fn as_number(&self) -> f64 {
         f64::from_bits(self.0)
+    }
+
+    pub fn try_number(&self) -> Result<f64> {
+        if self.is_number() {
+            return Ok(self.as_number());
+        }
+        Err(ConversionError::ConversionError("number".to_owned()).into())
     }
 }
 

@@ -1,28 +1,43 @@
-use std::fmt::Display;
-
 use thiserror::Error;
-
-use codespan_reporting::files::SimpleFiles;
 
 pub type Result<T, U = LoxError> = std::result::Result<T, U>;
 
 #[derive(Debug, Error)]
 pub enum LoxError {
+    #[error("OverflowError: {0}")]
     OverflowError(OverflowError),
+    #[error("InternalError: {0}")]
+    InternalError(InternalError),
+    #[error("InvalidAccessError: {0}")]
+    InvalidAccessError(InvalidAccessError),
+    #[error("ConversionError: {0}")]
+    ConversionError(ConversionError),
 }
 
 #[derive(Debug, Error)]
 pub enum OverflowError {
     #[error("exceeded max amount of constants ({0}) in a scope")]
     ExceedsConstSize(usize),
+    #[error("Index overflow exceeds ({0})")]
+    IndexOverflow(usize),
 }
 
-// pre-span solution just display
-// TODO update when a spanning solution is implemented
-impl Display for LoxError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
+#[derive(Debug, Error)]
+pub enum ConversionError {
+    #[error("Invalid conversion to: {0}")]
+    ConversionError(String),
+}
+
+#[derive(Debug, Error)]
+pub enum InvalidAccessError {
+    #[error("Attempted to use an empty stack")]
+    StackEmpty,
+}
+
+#[derive(Debug, Error)]
+pub enum InternalError {
+    #[error("unknown OP provided: (0x{0:x})")]
+    UnknownOperation(u8),
 }
 
 macro_rules! from_err {
@@ -35,4 +50,9 @@ macro_rules! from_err {
     };
 }
 
-from_err!(OverflowError);
+from_err!(
+    OverflowError,
+    InternalError,
+    ConversionError,
+    InvalidAccessError
+);
