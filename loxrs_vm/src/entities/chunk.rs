@@ -50,9 +50,13 @@ impl Chunk {
         Ok(())
     }
 
-    pub fn get_constant(&self, idx: usize) -> LoxResult<Value> {
+    pub fn read(&self, idx: usize) -> u8 {
+        self.code[idx]
+    }
+
+    pub fn read_const(&self, idx: usize) -> LoxResult<Value> {
         if idx < MAX_CONST_POOL {
-            return Ok(self.constants[idx]);
+            return Ok(self.constants[self.read(idx) as usize]);
         }
 
         return Err(<OverflowError as Into<LoxError>>::into(
@@ -81,6 +85,10 @@ impl Chunk {
             opcode::RETURN => self.display_op_simple("OP_RETURN", idx, f),
             opcode::CONSTANT => self.display_op_one_operand("OP_CONSTANT", idx, f),
             opcode::NEGATE => self.display_op_simple("OP_NEGATE", idx, f),
+            opcode::ADD => self.display_op_simple("OP_ADD", idx, f),
+            opcode::SUBTRACT => self.display_op_simple("OP_SUBTRACT", idx, f),
+            opcode::MULTIPLY => self.display_op_simple("OP_MULTIPLY", idx, f),
+            opcode::DIVIDE => self.display_op_simple("OP_DIVIDE", idx, f),
             _byte => self.display_op_simple("OP_UNKNOWN", idx, f),
         }
     }

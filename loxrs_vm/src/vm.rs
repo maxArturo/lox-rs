@@ -13,6 +13,7 @@ use crate::{
 pub struct VM {
     chunk: Chunk,
     stack: ArrayVec<Value, MAX_STACK>,
+    ip: usize,
 }
 
 impl VM {
@@ -20,6 +21,7 @@ impl VM {
         Self {
             chunk,
             stack: ArrayVec::new(),
+            ip: 0,
         }
     }
 
@@ -28,50 +30,77 @@ impl VM {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let mut idx = 0;
         loop {
-            trace!("{self}");
-
-            match self.chunk.code[idx] {
+            trace!("chunk idx at: {self}");
+            match self.read_op() {
                 opcode::RETURN => {
-                    let val = self.stack.pop().ok_or_else(|| {
-                        <InvalidAccessError as Into<LoxError>>::into(
-                            InvalidAccessError::StackEmpty.into(),
-                        )
-                    })?;
+                    let val = self.try_pop()?;
 
                     println!("RETURN VALUE: {val}");
                     break;
                 }
-                opcode::CONSTANT => {
-                    let constant = self.chunk.get_constant(self.chunk.code[idx + 1] as usize)?;
-                    self.stack.push(constant);
-                    idx += 2;
-                }
-                opcode::NEGATE => {
-                    let val = self
-                        .stack
-                        .pop()
-                        .ok_or_else(|| InvalidAccessError::StackEmpty.into())
-                        .and_then(|el| el.try_number())?;
-                    self.stack.push(Value::from(-val));
-                    idx += 1;
-                }
+                opcode::CONSTANT => self.constant()?,
+                opcode::NEGATE => self.negate()?,
+                opcode::ADD => self.binary_op_number(|a, b| a + b)?,
+                opcode::SUBTRACT => self.binary_op_number(|a, b| a - b)?,
+                opcode::MULTIPLY => self.binary_op_number(|a, b| a * b)?,
+                opcode::DIVIDE => self.binary_op_number(|a, b| a / b)?,
                 other => return Err(InternalError::UnknownOperation(other).into()),
             }
         }
+        Ok(())
+    }
+
+    fn ip(&mut self) -> usize {
+        let ip = self.ip;
+        self.ip += 1;
+        ip
+    }
+
+    fn read_op(&mut self) -> u8 {
+        let ip = self.ip();
+        self.chunk.read(ip)
+    }
+
+    fn negate(&mut self) -> Result<()> {
+        let last = self.stack.len() - 1;
+        self.stack[last] = Value::from(-(self.stack[last].try_number()?));
+        Ok(())
+    }
+
+    fn constant(&mut self) -> Result<()> {
+        let val = self.read_const()?;
+        self.stack.push(val);
+        Ok(())
+    }
+
+    fn read_const(&mut self) -> Result<Value> {
+        let ip = self.ip();
+        self.chunk.read_const(ip)
+    }
+
+    fn try_pop(&mut self) -> Result<Value> {
+        self.stack.pop().ok_or_else(|| {
+            <InvalidAccessError as Into<LoxError>>::into(InvalidAccessError::StackEmpty.into())
+        })
+    }
+
+    fn binary_op_number<F: FnOnce(f64, f64) -> f64>(&mut self, op: F) -> Result<()> {
+        // Stack is LIFO so we reverse the order
+        let b = self.try_pop()?.try_number()?;
+        let a = self.try_pop()?.try_number()?;
+        self.stack.push(Value::from(op(a, b)));
         Ok(())
     }
 }
 
 impl Display for VM {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "VM <")?;
-
-        writeln!(f, "Stack: [")?;
+        writeln!(f, "VM <pointer: {:04}>", self.ip)?;
+        writeln!(f, "Stack:")?;
         for (i, value) in self.stack.iter().enumerate() {
             writeln!(f, "{i:04} [{:p}]: {value}", value)?; // Add a comma before the next element
         }
-        write!(f, "]>")
+        Ok(())
     }
 }
