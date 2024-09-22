@@ -59,9 +59,12 @@ impl VM {
     }
 
     fn negate(&mut self) -> Result<()> {
-        let last = self.stack.len() - 1;
-        self.stack[last] = Value::from(-(self.stack[last].try_number()?));
-        Ok(())
+        if let Some(last) = self.stack.last_mut() {
+            *last = Value::from(-last.try_number()?);
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
     }
 
     fn constant(&mut self) -> Result<()> {
@@ -84,9 +87,17 @@ impl VM {
     fn binary_op_number<F: FnOnce(f64, f64) -> f64>(&mut self, op: F) -> Result<()> {
         // Stack is LIFO so we reverse the order
         let b = self.try_pop()?.try_number()?;
-        let a = self.try_pop()?.try_number()?;
-        self.stack.push(Value::from(op(a, b)));
-        Ok(())
+        // let a = self.try_pop()?.try_number()?;
+
+        if let Some(a) = self.stack.last_mut() {
+            *a = Value::from(op(a.try_number()?, b));
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
+
+        // self.stack.push(Value::from(op(a, b)));
+        // Ok(())
     }
 }
 
