@@ -32,7 +32,8 @@ impl VM {
     pub fn run(&mut self) -> Result<()> {
         loop {
             trace!("chunk idx at: {self}");
-            match self.read_op() {
+            let ip = self.ip();
+            match self.chunk.code[ip] {
                 opcode::RETURN => {
                     let val = self.try_pop()?;
 
@@ -55,11 +56,6 @@ impl VM {
         let ip = self.ip;
         self.ip += 1;
         ip
-    }
-
-    fn read_op(&mut self) -> u8 {
-        let ip = self.ip();
-        self.chunk.read(ip)
     }
 
     fn negate(&mut self) -> Result<()> {

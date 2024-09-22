@@ -50,13 +50,9 @@ impl Chunk {
         Ok(())
     }
 
-    pub fn read(&self, idx: usize) -> u8 {
-        self.code[idx]
-    }
-
     pub fn read_const(&self, idx: usize) -> LoxResult<Value> {
         if idx < MAX_CONST_POOL {
-            return Ok(self.constants[self.read(idx) as usize]);
+            return Ok(self.constants[self.code[idx] as usize]);
         }
 
         return Err(<OverflowError as Into<LoxError>>::into(

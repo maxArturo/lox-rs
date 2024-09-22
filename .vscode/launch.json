@@ -1,0 +1,120 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'loxrs_env'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=loxrs_env"
+                ],
+                "filter": {
+                    "name": "loxrs_env",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'loxrs_types'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=loxrs_types"
+                ],
+                "filter": {
+                    "name": "loxrs_types",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'loxrs_interpreter'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=loxrs_interpreter",
+                    "--package=loxrs_interpreter"
+                ],
+                "filter": {
+                    "name": "loxrs_interpreter",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'loxrs_interpreter'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=loxrs_interpreter",
+                    "--package=loxrs_interpreter"
+                ],
+                "filter": {
+                    "name": "loxrs_interpreter",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'loxrs_vm'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=loxrs_vm",
+                    "--package=loxrs_vm"
+                ],
+                "filter": {
+                    "name": "loxrs_vm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'loxrs_vm'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=loxrs_vm",
+                    "--package=loxrs_vm"
+                ],
+                "filter": {
+                    "name": "loxrs_vm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
