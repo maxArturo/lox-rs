@@ -4,6 +4,7 @@ use arrayvec::ArrayVec;
 use log::trace;
 
 use crate::{
+    compiler::compile,
     config::MAX_STACK,
     entities::{chunk::Chunk, opcode, value::Value},
     error::{InternalError, InvalidAccessError, LoxError, Result},
@@ -17,16 +18,17 @@ pub struct VM {
 }
 
 impl VM {
-    pub fn new(chunk: Chunk) -> Self {
+    pub fn new() -> Self {
         Self {
-            chunk,
+            chunk: Chunk::default(),
             stack: ArrayVec::new(),
             ip: 0,
         }
     }
 
-    pub fn interpret(&mut self) -> Result<()> {
-        self.run()
+    pub fn interpret(&mut self, source: &str) -> Result<()> {
+        // self.run()
+        compile(source)
     }
 
     pub fn run(&mut self) -> Result<()> {

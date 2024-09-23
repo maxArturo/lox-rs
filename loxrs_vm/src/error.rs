@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use thiserror::Error;
 
 pub type Result<T, U = LoxError> = std::result::Result<T, U>;
@@ -12,6 +14,33 @@ pub enum LoxError {
     InvalidAccessError(InvalidAccessError),
     #[error("ConversionError: {0}")]
     ConversionError(ConversionError),
+    #[error("LexerError: {0}")]
+    LexerError(LexerError),
+}
+
+#[derive(Debug, Error, Clone, PartialEq)]
+pub enum LexerError {
+    #[error("{0}")]
+    UnrecognizedInput(String),
+    #[error("{0}")]
+    InvalidInteger(String),
+}
+
+impl Default for LexerError {
+    fn default() -> Self {
+        Self::UnrecognizedInput("Unknown input found".to_owned())
+    }
+}
+
+/// Error type returned by calling `lex.slice().parse()` to u8.
+impl From<ParseIntError> for LexerError {
+    fn from(err: ParseIntError) -> Self {
+        use std::num::IntErrorKind::*;
+        match err.kind() {
+            PosOverflow | NegOverflow => LexerError::InvalidInteger("overflow error".to_owned()),
+            _ => LexerError::UnrecognizedInput("other error".to_owned()),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -54,5 +83,6 @@ from_err!(
     OverflowError,
     InternalError,
     ConversionError,
-    InvalidAccessError
+    InvalidAccessError,
+    LexerError
 );

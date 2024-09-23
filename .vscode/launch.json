@@ -58,7 +58,11 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "initCommands": [
+                "settings set target.demangle true",
+                "disassemble -n loxrs_vm::vm::VM::negate"
+            ]
         },
         {
             "type": "lldb",
