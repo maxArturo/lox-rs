@@ -3,7 +3,9 @@ var why = fun (fn) {
     fun (maker) {
       // manual version of two args, no destructuring here *yet*
       return fun (first) {
-        // same here
+        /* 
+        same here
+        */
         return fn(maker(maker), first);
       };
     }

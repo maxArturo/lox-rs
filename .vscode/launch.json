@@ -98,7 +98,9 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "./loxrs_interpreter/src/lox/interpreter/test/e2e/pass/ycomb.lox"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {

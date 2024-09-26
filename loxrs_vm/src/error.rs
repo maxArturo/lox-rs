@@ -20,10 +20,12 @@ pub enum LoxError {
 
 #[derive(Debug, Error, Clone, PartialEq)]
 pub enum LexerError {
-    #[error("{0}")]
+    #[error("Unrecognized input: {0}")]
     UnrecognizedInput(String),
-    #[error("{0}")]
+    #[error("Could not recognize {0} as a valid number")]
     InvalidInteger(String),
+    #[error("Malformed comment: {0}")]
+    MalformedComment(String),
 }
 
 impl Default for LexerError {
