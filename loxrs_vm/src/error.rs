@@ -2,6 +2,8 @@ use std::num::ParseIntError;
 
 use thiserror::Error;
 
+use crate::span::Spanned;
+
 pub type Result<T, U = LoxError> = std::result::Result<T, U>;
 
 #[derive(Debug, Error)]
@@ -16,6 +18,25 @@ pub enum LoxError {
     ConversionError(ConversionError),
     #[error("LexerError: {0}")]
     LexerError(LexerError),
+}
+
+#[derive(Debug, Error, Clone, PartialEq)]
+pub enum TokenError {
+    #[error("Unrecognized input at line: {0}, col: {1}")]
+    UnrecognizedInput(usize, usize),
+    #[error("Invalid number at line: {0}, col: {1}")]
+    InvalidInteger(usize, usize),
+    #[error("Malformed comment at line: {0}, col: {1}")]
+    MalformedComment(usize, usize),
+}
+
+impl Spanned for TokenError {
+    fn span(&self) -> std::ops::Range<usize> {
+        match self {
+            Self::InvalidInteger(line,col )
+            
+        }
+    }
 }
 
 #[derive(Debug, Error, Clone, PartialEq)]

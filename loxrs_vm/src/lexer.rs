@@ -28,91 +28,72 @@ pub enum Token {
     Newline,
     #[regex(r"\/\/[^\n]*", logos::skip)]
     Comment,
-
-
     #[token("/*", block_comment)]
     BlockComment,
+
     // single chars
     #[token("(", update_col)]
-    LeftParen,
+    LeftParen((usize, usize)),
     #[token(")", update_col)]
-    RightParen,
+    RightParen((usize, usize)),
     #[token("{", update_col)]
-    LeftBrace,
+    LeftBrace((usize, usize)),
     #[token("}", update_col)]
-    RightBrace,
+    RightBrace((usize, usize)),
     #[token(";", update_col)]
-    Semicolon,
+    Semicolon((usize, usize)),
     #[token(",", update_col)]
-    Comma,
+    Comma((usize, usize)),
     #[token(".", update_col)]
-    Dot,
+    Dot((usize, usize)),
     #[token("-", update_col)]
-    Minus,
+    Minus((usize, usize)),
     #[token("+", update_col)]
-    Plus,
+    Plus((usize, usize)),
     #[token("/", update_col)]
-    Slash,
+    Slash((usize, usize)),
     #[token("*", update_col)]
-    Star,
+    Star((usize, usize)),
 
     // single or double-chars
     #[token("=", update_col)]
-    Equal,
+    Equal((usize, usize)),
     #[token("<", update_col)]
-    Less,
+    Less((usize, usize)),
     #[token(">", update_col)]
-    More,
+    More((usize, usize)),
     #[token("!=", update_col)]
-    BangEqual,
+    BangEqual((usize, usize)),
     #[token("==", update_col)]
-    EqualEqual,
+    EqualEqual((usize, usize)),
     #[token("<=", update_col)]
-    LessEqual,
+    LessEqual((usize, usize)),
     #[token(">=", update_col)]
-    GreaterEqual,
+    GreaterEqual((usize, usize)),
 
     // literals
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", literal)]
-    Literal(String),
+    Literal((usize, usize, String)),
 
-    // strings
-    #[regex(r#""[^"]*""#, string)]
-    String(String),
+    // strings (to be defined separately from string blocks)
+    #[regex(r#""[^"\n]*""#, string)]
+    String((usize, usize, String)),
 
     // numbers
     #[regex(r"[0-9]+(\.[0-9]+)?", number)]
-    Number(f64),
+    Number((usize, usize, f64)),
 }
-
-// fn comment(lexer: &mut logos::Lexer<Token>) -> Skip {
-//     lexer.extras.line += 1;
-//     lexer.extras.col = 1;
-//     lexer.extras.line_offset = lexer.span().end;
-
-//     println!(
-//         "yo this is a COMMENT: col: {}  full span: {:?}",
-//         lexer.extras.col,
-//         lexer.span()
-//     );
-//     Skip
-// }
 
 fn newline(lexer: &mut logos::Lexer<Token>) -> Skip {
     lexer.extras.line += 1;
     lexer.extras.col = 1;
     lexer.extras.line_offset = lexer.span().end;
-
-    println!(
-        "yo this is a NEWLINE: col: {}  full span: {:?}",
-        lexer.extras.col,
-        lexer.span()
-    );
     Skip
 }
 
-fn update_col(lexer: &mut logos::Lexer<Token>) {
+fn update_col(lexer: &mut logos::Lexer<Token>) -> (usize, usize) {
     lexer.extras.col = lexer.span().start - lexer.extras.line_offset + 1;
+    (lexer.extras.line, lexer.extras.col)
 }
 
 fn block_comment(lex: &mut Lexer<Token>) -> FilterResult<(), LexerError> {
@@ -145,19 +126,57 @@ fn block_comment(lex: &mut Lexer<Token>) -> FilterResult<(), LexerError> {
 fn literal(lexer: &mut logos::Lexer<Token>) -> String {
     update_col(lexer);
     let slice = lexer.slice();
-    slice.to_owned()
+    (lexer.extras.line, lexer.extras.col, slice.to_owned())
 }
 
 fn string(lexer: &mut logos::Lexer<Token>) -> String {
     update_col(lexer);
     let slice = lexer.slice();
-    slice[1..slice.len() - 1].to_owned()
+
+    (
+        lexer.extras.line,
+        lexer.extras.col,
+        slice[1..slice.len() - 1].to_owned(),
+    )
 }
 
-fn number(lexer: &mut logos::Lexer<Token>) -> Result<f64, LexerError> {
+fn number(lexer: &mut logos::Lexer<Token>) -> Result<(usize, usize, f64), LexerError> {
     update_col(lexer);
     let slice = lexer.slice();
     slice
         .parse()
+        .map(|number| (lexer.extras.line, lexer.extras.col, number))
         .or_else(|_| Err(LexerError::InvalidInteger(slice.to_owned())))
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use pretty_assertions::assert_eq;
+
+//     use super::*;
+
+//     #[test]
+//     fn lex_invalid_token() {
+//         let exp = vec![
+//             Err((
+//                 Error::SyntaxError(SyntaxError::UnexpectedInput {
+//                     token: "@foo".to_string(),
+//                 }),
+//                 0..4,
+//             )),
+//             Ok((5, Token::Identifier("bar".to_string()), 8)),
+//         ];
+//         let got = Lexer::new("@foo bar").collect::<Vec<_>>();
+//         assert_eq!(exp, got);
+//     }
+
+//     #[test]
+//     fn lex_unterminated_string() {
+//         let exp = vec![Err((
+//             Error::SyntaxError(SyntaxError::UnterminatedString),
+//             0..5,
+//         ))];
+//         let got = Lexer::new("\"\nfoo").collect::<Vec<_>>();
+//         assert_eq!(exp, got);
+//     }
+// }

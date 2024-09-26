@@ -6,6 +6,7 @@ var why = fun (fn) {
         /* 
         same here
         */
+        print "here ;
         return fn(maker(maker), first);
       };
     }

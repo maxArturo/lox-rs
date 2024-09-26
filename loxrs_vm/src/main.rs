@@ -1,4 +1,5 @@
 mod compiler;
+mod types;
 mod config;
 mod entities;
 mod error;

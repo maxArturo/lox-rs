@@ -2,6 +2,11 @@ use logos::Logos;
 
 use crate::{error::Result, lexer::Token};
 
+/*
+    approach is to bail fast from this loop and collect any/all error with unbundled spans
+    that way we dont' have to keep track of anything else and we keep the tokens light and
+    tokenizing fast
+ */
 pub fn compile(line: &str) -> Result<()> {
     let mut lexer = Token::lexer(line);
     while let Some(res) = lexer.next() {
