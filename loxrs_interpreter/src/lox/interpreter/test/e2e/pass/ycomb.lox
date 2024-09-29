@@ -2,11 +2,11 @@ var why = fun (fn) {
   return (
     fun (maker) {
       // manual version of two args, no destructuring here *yet*
+      "yo
       return fun (first) {
         /* 
         same here
-        */
-        print "here ;
+        */ and /* here
         return fn(maker(maker), first);
       };
     }

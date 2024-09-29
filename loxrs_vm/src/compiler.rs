@@ -1,41 +1,42 @@
-use logos::Logos;
+use std::vec;
 
-use crate::{error::Result, lexer::Token};
+use codespan_reporting::{
+    diagnostic::Diagnostic,
+    files::SimpleFile,
+    term::{
+        self,
+        termcolor::{ColorChoice, StandardStream},
+    },
+};
 
-/*
-    approach is to bail fast from this loop and collect any/all error with unbundled spans
-    that way we dont' have to keep track of anything else and we keep the tokens light and
-    tokenizing fast
- */
-pub fn compile(line: &str) -> Result<()> {
-    let mut lexer = Token::lexer(line);
-    while let Some(res) = lexer.next() {
-        match res {
-            Ok(token) => {
-                println!(
-                    "line: {:03}, col: {:03}, start: {:04} end: {:04} word: {:?}",
-                    lexer.extras.line,
-                    lexer.extras.col,
-                    lexer.span().start,
-                    lexer.span().end,
-                    token
-                );
+use crate::{
+    error::{Label, Result},
+    lexer::Lexer,
+};
 
-                if let Token::BlockComment = token {
-                    println!("yo this is a BLOCK: {:?}", lexer.span())
-                }
-            }
+pub fn compile(source: &str) -> Result<()> {
+    let lexer = Lexer::new(source);
+    let mut labels: Vec<Label> = vec![];
+    for el in lexer.into_iter() {
+        match el {
+            Ok(token) => println!("{:?}", token),
             Err(err) => {
-                println!(
-                    "line: {:03}, col: {:03}, start: {:04} end: {:04} ERR: {}",
-                    lexer.extras.line,
-                    lexer.extras.col,
-                    lexer.span().start,
-                    lexer.span().end,
-                    err
-                )
+                println!("{:?}", err);
+                labels.push((err.0.into(), err.1).into());
             }
         }
+    }
+
+    let file = SimpleFile::new("source", source);
+    let diagnostic: Diagnostic<()> = Diagnostic::error()
+        .with_message("Lexer error")
+        .with_labels(labels.iter().map(|el| el.0.clone()).collect());
+
+    let writer = StandardStream::stderr(ColorChoice::Always);
+    let config = codespan_reporting::term::Config::default();
+
+    if !labels.is_empty() {
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic).unwrap();
     }
 
     Ok(())

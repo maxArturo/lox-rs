@@ -8,10 +8,10 @@ use arrayvec::ArrayVec;
 use crate::{
     config::MAX_CONST_POOL,
     error::{LoxError, OverflowError, Result as LoxResult},
-    span::Span,
 };
 
 use super::{opcode, value::Value};
+type Span = Range<usize>;
 
 #[derive(Debug, Default)]
 pub struct Chunk {

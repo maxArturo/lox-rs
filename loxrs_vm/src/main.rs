@@ -1,11 +1,10 @@
 mod compiler;
-mod types;
 mod config;
 mod entities;
 mod error;
 mod input;
 mod lexer;
-mod span;
+mod types;
 mod vm;
 
 use input::read_input as start;

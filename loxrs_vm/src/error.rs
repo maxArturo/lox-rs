@@ -2,9 +2,11 @@ use std::num::ParseIntError;
 
 use thiserror::Error;
 
-use crate::span::Spanned;
+use crate::types::Span;
 
 pub type Result<T, U = LoxError> = std::result::Result<T, U>;
+
+pub type LoxErrorS = Span<LoxError>;
 
 #[derive(Debug, Error)]
 pub enum LoxError {
@@ -21,37 +23,20 @@ pub enum LoxError {
 }
 
 #[derive(Debug, Error, Clone, PartialEq)]
-pub enum TokenError {
-    #[error("Unrecognized input at line: {0}, col: {1}")]
-    UnrecognizedInput(usize, usize),
-    #[error("Invalid number at line: {0}, col: {1}")]
-    InvalidInteger(usize, usize),
-    #[error("Malformed comment at line: {0}, col: {1}")]
-    MalformedComment(usize, usize),
-}
-
-impl Spanned for TokenError {
-    fn span(&self) -> std::ops::Range<usize> {
-        match self {
-            Self::InvalidInteger(line,col )
-            
-        }
-    }
-}
-
-#[derive(Debug, Error, Clone, PartialEq)]
 pub enum LexerError {
     #[error("Unrecognized input: {0}")]
     UnrecognizedInput(String),
+    #[error("Malformed string: {0}")]
+    MalformedString(String),
     #[error("Could not recognize {0} as a valid number")]
     InvalidInteger(String),
-    #[error("Malformed comment: {0}")]
-    MalformedComment(String),
+    #[error("Malformed comment")]
+    MalformedComment,
 }
 
 impl Default for LexerError {
     fn default() -> Self {
-        Self::UnrecognizedInput("Unknown input found".to_owned())
+        Self::UnrecognizedInput("Unrecognized input".to_owned())
     }
 }
 
@@ -109,3 +94,27 @@ from_err!(
     InvalidAccessError,
     LexerError
 );
+
+#[derive(Debug, Clone)]
+pub struct Label(pub codespan_reporting::diagnostic::Label<()>);
+
+impl From<LoxErrorS> for Label {
+    fn from((err, range): LoxErrorS) -> Self {
+        match &err {
+            LoxError::LexerError(lexer_error) => match lexer_error {
+                LexerError::UnrecognizedInput(unrecognized) => Label(
+                    codespan_reporting::diagnostic::Label::secondary((), range)
+                        .with_message(unrecognized),
+                ),
+                _ => Label(
+                    codespan_reporting::diagnostic::Label::primary((), range)
+                        .with_message(err.to_string()),
+                ),
+            },
+            _ => Label(
+                codespan_reporting::diagnostic::Label::primary((), range)
+                    .with_message(err.to_string()),
+            ),
+        }
+    }
+}
