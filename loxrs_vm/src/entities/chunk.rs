@@ -17,7 +17,7 @@ type Span = Range<usize>;
 pub struct Chunk {
     pub code: Vec<u8>,
     constants: ArrayVec<Value, MAX_CONST_POOL>,
-    spans: Vec<Span>,
+    pub spans: Vec<Span>,
 }
 
 impl Chunk {

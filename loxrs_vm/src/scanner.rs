@@ -2,10 +2,10 @@ use std::fmt;
 
 use logos::{FilterResult, Logos};
 
-use crate::{error::LexerError, types::Span};
+use crate::{error::ScannerError, types::Span};
 
 #[derive(Debug, Logos, PartialEq)]
-#[logos(error = LexerError)]
+#[logos(error = ScannerError)]
 #[logos(skip r"[ \t]+")]
 
 pub enum Token {
@@ -56,6 +56,40 @@ pub enum Token {
     #[token(">=")]
     GreaterEqual,
 
+    // reserved keywords
+    #[token("and")]
+    And,
+    #[token("class")]
+    Class,
+    #[token("else")]
+    Else,
+    #[token("false")]
+    False,
+    #[token("fun")]
+    Fun,
+    #[token("for")]
+    For,
+    #[token("if")]
+    If,
+    #[token("nil")]
+    Nil,
+    #[token("or")]
+    Or,
+    #[token("print")]
+    Print,
+    #[token("return")]
+    Return,
+    #[token("super")]
+    Super,
+    #[token("this")]
+    This,
+    #[token("true")]
+    True,
+    #[token("var")]
+    Var,
+    #[token("while")]
+    While,
+
     // literals
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", literal)]
     Literal(String),
@@ -80,14 +114,14 @@ fn string(lexer: &mut logos::Lexer<Token>) -> String {
     slice[1..slice.len() - 1].to_owned()
 }
 
-fn number(lexer: &mut logos::Lexer<Token>) -> Result<f64, LexerError> {
+fn number(lexer: &mut logos::Lexer<Token>) -> Result<f64, ScannerError> {
     let slice = lexer.slice();
     slice
         .parse()
-        .or_else(|_| Err(LexerError::InvalidInteger(slice.to_owned())))
+        .or_else(|_| Err(ScannerError::InvalidNumber(slice.to_owned())))
 }
 
-fn multiline_comment(lex: &mut logos::Lexer<Token>) -> FilterResult<(), LexerError> {
+fn multiline_comment(lex: &mut logos::Lexer<Token>) -> FilterResult<(), ScannerError> {
     enum State {
         ExpectStar,
         ExpectSlash,
@@ -105,7 +139,7 @@ fn multiline_comment(lex: &mut logos::Lexer<Token>) -> FilterResult<(), LexerErr
         }
     }
     lex.bump(remainder.len());
-    FilterResult::Error(LexerError::MalformedComment)
+    FilterResult::Error(ScannerError::MalformedComment)
 }
 
 impl fmt::Display for Token {
@@ -136,6 +170,22 @@ impl fmt::Display for Token {
             Token::Literal(value) => write!(f, "{}: {:16}", "Literal", value),
             Token::String(value) => write!(f, "{}: {:16}", "String", value),
             Token::Number(value) => write!(f, "{}: {:16}", "Number", value),
+            Token::And => write!(f, "and"),
+            Token::Class => write!(f, "Class"),
+            Token::Else => write!(f, "Else"),
+            Token::False => write!(f, "False"),
+            Token::Fun => write!(f, "Fun"),
+            Token::For => write!(f, "For"),
+            Token::If => write!(f, "If"),
+            Token::Nil => write!(f, "Nil"),
+            Token::Or => write!(f, "Or"),
+            Token::Print => write!(f, "Print"),
+            Token::Return => write!(f, "Return"),
+            Token::Super => write!(f, "Super"),
+            Token::This => write!(f, "This"),
+            Token::True => write!(f, "True"),
+            Token::Var => write!(f, "Var"),
+            Token::While => write!(f, "While"),
         }?;
         write!(f, ">")
     }
@@ -143,12 +193,12 @@ impl fmt::Display for Token {
 
 pub type TokenS = Span<Token>;
 
-pub struct Lexer<'a> {
+pub struct Scanner<'a> {
     matcher: logos::Lexer<'a, Token>,
     curr: Option<TokenS>,
 }
 
-impl<'a> Lexer<'a> {
+impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             matcher: Token::lexer(source),
@@ -157,8 +207,8 @@ impl<'a> Lexer<'a> {
     }
 }
 
-impl Iterator for Lexer<'_> {
-    type Item = Result<TokenS, Span<LexerError>>;
+impl Iterator for Scanner<'_> {
+    type Item = Result<TokenS, Span<ScannerError>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(res) = self.curr.take() {
@@ -175,16 +225,10 @@ impl Iterator for Lexer<'_> {
                         let slice = self.matcher.slice();
                         if slice.starts_with('"') {
                             return Some(Err((
-                                LexerError::MalformedString(slice.to_owned()),
+                                ScannerError::MalformedString(slice.to_owned()),
                                 span,
                             )));
                         }
-                        // if slice.starts_with("//") || slice.starts_with("/*") {
-                        //     return Some(Err((
-                        //         LexerError::MalformedComment,
-                        //         span,
-                        //     )));
-                        // }
 
                         Some(Err((err, span)))
                     }

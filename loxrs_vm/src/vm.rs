@@ -7,7 +7,7 @@ use crate::{
     compiler::compile,
     config::MAX_STACK,
     entities::{chunk::Chunk, opcode, value::Value},
-    error::{InternalError, InvalidAccessError, LoxError, Result},
+    error::{InternalError, InvalidAccessError, LoxError, LoxErrorS, Result},
 };
 
 #[derive(Debug)]
@@ -26,9 +26,12 @@ impl VM {
         }
     }
 
-    pub fn interpret(&mut self, source: &str) -> Result<()> {
-        // self.run()
-        compile(source)
+    pub fn interpret(&mut self, source: &str) -> Result<(), Vec<LoxErrorS>> {
+        self.chunk = compile(source)?;
+        match self.run() {
+            Err(err) => Err(vec![(err, self.chunk.spans[self.ip].clone())]),
+            Ok(()) => Ok(()),
+        }
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -51,6 +54,7 @@ impl VM {
                 other => return Err(InternalError::UnknownOperation(other).into()),
             }
         }
+        {}
         Ok(())
     }
 

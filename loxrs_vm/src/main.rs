@@ -3,7 +3,7 @@ mod config;
 mod entities;
 mod error;
 mod input;
-mod lexer;
+mod scanner;
 mod types;
 mod vm;
 

@@ -1,4 +1,4 @@
-use crate::error::{ConversionError, Result};
+use crate::error::{ConversionError, LoxError, Result};
 use std::{fmt::Display, mem};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -24,7 +24,7 @@ impl Value {
         f64::from_bits(self.0)
     }
 
-    pub fn try_number(&self) -> Result<f64> {
+    pub fn try_number(&self) -> Result<f64, LoxError> {
         if self.is_number() {
             return Ok(self.as_number());
         }

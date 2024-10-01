@@ -1,43 +1,45 @@
-use std::vec;
-
-use codespan_reporting::{
-    diagnostic::Diagnostic,
-    files::SimpleFile,
-    term::{
-        self,
-        termcolor::{ColorChoice, StandardStream},
-    },
-};
-
 use crate::{
-    error::{Label, Result},
-    lexer::Lexer,
+    entities::chunk::Chunk,
+    error::{LoxErrorS, Result},
+    scanner::{Scanner, TokenS},
 };
 
-pub fn compile(source: &str) -> Result<()> {
-    let lexer = Lexer::new(source);
-    let mut labels: Vec<Label> = vec![];
-    for el in lexer.into_iter() {
+fn scan(source: &str) -> Result<Vec<TokenS>, Vec<LoxErrorS>> {
+    let scanner = Scanner::new(source);
+    let mut tokens = vec![];
+    let mut errs = vec![];
+    for el in scanner.into_iter() {
         match el {
-            Ok(token) => println!("{:?}", token),
+            Ok(token) => tokens.push(token),
             Err(err) => {
-                println!("{:?}", err);
-                labels.push((err.0.into(), err.1).into());
+                errs.push((err.0.into(), err.1).into());
             }
         }
     }
-
-    let file = SimpleFile::new("source", source);
-    let diagnostic: Diagnostic<()> = Diagnostic::error()
-        .with_message("Lexer error")
-        .with_labels(labels.iter().map(|el| el.0.clone()).collect());
-
-    let writer = StandardStream::stderr(ColorChoice::Always);
-    let config = codespan_reporting::term::Config::default();
-
-    if !labels.is_empty() {
-        term::emit(&mut writer.lock(), &config, &file, &diagnostic).unwrap();
+    if errs.is_empty() {
+        return Ok(tokens);
     }
+    Err(errs)
+}
 
-    Ok(())
+pub fn compile(source: &str) -> Result<Chunk, Vec<LoxErrorS>> {
+    let tokens = scan(source)?;
+
+    todo!()
+}
+
+struct Parser {
+    tokens: std::vec::IntoIter<TokenS>,
+    curr: Option<TokenS>,
+    prev: Option<TokenS>,
+}
+
+impl Parser {
+    fn advance(&mut self) -> Option<()> {
+        let next = self.tokens.next()?;
+        if let Some(prev) = self.curr.replace(next) {
+            self.prev.replace(prev);
+        };
+        Some(())
+    }
 }
