@@ -4,9 +4,9 @@ use thiserror::Error;
 
 use crate::types::Span;
 
-pub type Result<T, U = LoxError> = std::result::Result<T, U>;
-
 pub type LoxErrorS = Span<LoxError>;
+
+pub type Result<T, U = LoxError> = std::result::Result<T, U>;
 
 #[derive(Debug, Error, Clone)]
 pub enum LoxError {
@@ -20,6 +20,8 @@ pub enum LoxError {
     ConversionError(ConversionError),
     #[error("ScannerError: {0}")]
     ScannerError(ScannerError),
+    #[error("Syntax Error: {0}")]
+    SyntaxError(SyntaxError),
 }
 
 #[derive(Debug, Error, Clone, PartialEq)]
@@ -37,6 +39,20 @@ pub enum ScannerError {
 impl Default for ScannerError {
     fn default() -> Self {
         Self::UnrecognizedInput("Unrecognized input".to_owned())
+    }
+}
+
+#[derive(Debug, Error, Clone, PartialEq)]
+pub enum SyntaxError {
+    #[error("Invalid Syntax")]
+    InvalidSyntax,
+    #[error("{0}")]
+    UnexpectedValue(String),
+}
+
+impl Default for SyntaxError {
+    fn default() -> Self {
+        Self::InvalidSyntax
     }
 }
 
@@ -75,6 +91,8 @@ pub enum InvalidAccessError {
 pub enum InternalError {
     #[error("unknown OP provided: (0x{0:x})")]
     UnknownOperation(u8),
+    #[error("Unexpected code path, programmer error")]
+    UnexpectedCodePath,
 }
 
 macro_rules! from_err {
@@ -92,7 +110,8 @@ from_err!(
     InternalError,
     ConversionError,
     InvalidAccessError,
-    ScannerError
+    ScannerError,
+    SyntaxError
 );
 
 #[derive(Debug, Clone)]

@@ -1,10 +1,15 @@
+use std::cmp::Eq;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use logos::{FilterResult, Logos};
 
-use crate::{error::ScannerError, types::Span};
+use crate::{
+    error::{LoxErrorS, ScannerError},
+    types::Span,
+};
 
-#[derive(Debug, Logos, PartialEq)]
+#[derive(Debug, Logos, PartialEq, Clone)]
 #[logos(error = ScannerError)]
 #[logos(skip r"[ \t]+")]
 
@@ -101,6 +106,28 @@ pub enum Token {
     // numbers
     #[regex(r"[0-9]+(\.[0-9]+)?", number)]
     Number(f64),
+}
+
+impl Eq for Token {}
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Token::Number(n) => {
+                // Hash the bits of the f64 directly if it's not NaN
+                if n.is_nan() {
+                    // Hash a specific value for NaN
+                    state.write_u64(u64::MAX);
+                } else {
+                    state.write_u64(n.to_bits());
+                }
+            }
+            Token::String(s) => s.hash(state),
+            Token::Literal(s) => s.hash(state),
+            // For all other variants, we can use their discriminant
+            _ => std::mem::discriminant(self).hash(state),
+        }
+    }
 }
 
 fn literal(lexer: &mut logos::Lexer<Token>) -> String {
@@ -237,4 +264,22 @@ impl Iterator for Scanner<'_> {
             None => None,
         }
     }
+}
+
+pub fn scan(source: &str) -> Result<Vec<TokenS>, Vec<LoxErrorS>> {
+    let scanner = Scanner::new(source);
+    let mut tokens = vec![];
+    let mut errs = vec![];
+    for el in scanner.into_iter() {
+        match el {
+            Ok(token) => tokens.push(token),
+            Err(err) => {
+                errs.push((err.0.into(), err.1).into());
+            }
+        }
+    }
+    if errs.is_empty() {
+        return Ok(tokens);
+    }
+    Err(errs)
 }

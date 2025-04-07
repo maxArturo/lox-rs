@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 
 use crate::{
     config::MAX_CONST_POOL,
-    error::{LoxError, OverflowError, Result as LoxResult},
+    error::{LoxError, LoxErrorS, OverflowError, Result as LoxResult},
 };
 
 use super::{opcode, value::Value};
@@ -43,8 +43,13 @@ impl Chunk {
         })
     }
 
-    pub fn add_constant(&mut self, opcode: u8, val: Value, span: &Span) -> LoxResult<()> {
-        let idx = self.write_constant(val)?;
+    pub fn add_constant(
+        &mut self,
+        opcode: u8,
+        val: Value,
+        span: &Span,
+    ) -> LoxResult<(), LoxErrorS> {
+        let idx = self.write_constant(val).map_err(|e| (e, span.clone()))?;
         self.write_chunk(opcode, span.clone());
         self.write_chunk(idx, span.clone());
         Ok(())

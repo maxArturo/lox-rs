@@ -1,8 +1,10 @@
 mod compiler;
 mod config;
+mod constants;
 mod entities;
 mod error;
 mod input;
+mod parser;
 mod scanner;
 mod types;
 mod vm;

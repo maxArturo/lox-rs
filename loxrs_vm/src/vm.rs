@@ -54,7 +54,6 @@ impl VM {
                 other => return Err(InternalError::UnknownOperation(other).into()),
             }
         }
-        {}
         Ok(())
     }
 
@@ -64,9 +63,10 @@ impl VM {
         ip
     }
 
-    fn negate(&mut self) -> Result<()> {
+    fn negate(&mut self) -> Result<(), LoxError> {
         if let Some(last) = self.stack.last_mut() {
-            *last = Value::from(-last.try_number()?);
+            let num: f64 = -(last.try_number()?);
+            *last = Value::from(num);
             Ok(())
         } else {
             return Err(InvalidAccessError::StackEmpty.into());
