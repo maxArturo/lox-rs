@@ -101,9 +101,6 @@ impl VM {
         } else {
             return Err(InvalidAccessError::StackEmpty.into());
         }
-
-        // self.stack.push(Value::from(op(a, b)));
-        // Ok(())
     }
 }
 

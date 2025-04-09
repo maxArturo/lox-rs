@@ -99,7 +99,7 @@
                 }
             },
             "args": [
-                "./loxrs_interpreter/src/lox/interpreter/test/e2e/pass/ycomb.lox"
+                "./loxrs_interpreter/src/lox/interpreter/test/e2e/spec/operator/multiply.lox"
             ],
             "cwd": "${workspaceFolder}"
         },

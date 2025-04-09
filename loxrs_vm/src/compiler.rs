@@ -33,6 +33,10 @@ impl Compiler {
 
     fn compile(&mut self) -> Result<&Chunk, Vec<LoxErrorS>> {
         // temporarily add a return opcode
+        if let Err(e) = self.emit_constant(Value::from(0.0), &NO_SPAN) {
+            return Err(vec![e]);
+        }
+
         match self.emit_return() {
             Ok(_) => Ok(&self.chunk),
             Err(e) => return Err(vec![e]),
@@ -109,8 +113,8 @@ impl Compiler {
     }
 
     fn number(&mut self) -> Result<(), LoxErrorS> {
-        if let Some((Token::Number(number), span)) = self.parser.prev.clone() {
-            return self.emit_constant(Value::from(number), &span);
+        if let Some((Token::Number(number), span)) = &self.parser.prev {
+            return self.emit_constant(Value::from(number.clone()), &span.clone());
         }
         Err((InternalError::UnexpectedCodePath.into(), NO_SPAN))
     }
