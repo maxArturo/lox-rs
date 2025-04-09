@@ -98,8 +98,11 @@
                     "kind": "bin"
                 }
             },
+            "env": {
+                "RUST_LOG": "trace"
+            },
             "args": [
-                "./loxrs_interpreter/src/lox/interpreter/test/e2e/spec/operator/multiply.lox"
+                "./loxrs_interpreter/src/lox/interpreter/test/e2e/pass/simple.lox"
             ],
             "cwd": "${workspaceFolder}"
         },

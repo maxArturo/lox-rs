@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::{
     constants::NO_SPAN,
     error::{InternalError, LoxErrorS, SyntaxError},
@@ -12,9 +14,12 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(tokens: Vec<TokenS>) -> Self {
+        debug!("Extracted tokens: {:?}", tokens);
+        let mut tokens = tokens.into_iter();
+        let curr = tokens.next();
         Self {
-            tokens: tokens.into_iter(),
-            curr: None,
+            tokens,
+            curr,
             prev: None,
         }
     }

@@ -15,6 +15,14 @@ cargo run -- ./loxrs_interpreter/src/lox/interpreter/test/e2e/unimplemented/basi
 
 ```
 
+for running the VM version: 
+
+```shell
+RUST_BACKTRACE=1 RUST_LOG=trace cargo run --bin loxrs_vm -- ./loxrs_interpreter/src/lox/interpreter/test/e2e/pass/simple.lox
+```
+
+or a REPL for the VM: `RUST_LOG=trace cargo run --bin loxrs_vm`
+
 ## Performance
 
 Running the `loxrs_interpreter/src/lox/interpreter/test/e2e/spec/benchmark/fib.lox` on the `release` build of the treewalk interpreter on a 2.6 GHz 6-Core Intel Core i7 outputs:

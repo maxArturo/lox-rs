@@ -22,6 +22,8 @@ pub enum LoxError {
     ScannerError(ScannerError),
     #[error("Syntax Error: {0}")]
     SyntaxError(SyntaxError),
+    #[error("Compiler Error: {0}")]
+    CompilerError(CompilerError),
 }
 
 #[derive(Debug, Error, Clone, PartialEq)]
@@ -95,6 +97,12 @@ pub enum InternalError {
     UnexpectedCodePath,
 }
 
+#[derive(Debug, Error, Clone)]
+pub enum CompilerError {
+    #[error("Expected a different precedence for {0}")]
+    PrecedenceError(String),
+}
+
 macro_rules! from_err {
     ($($err:tt),+) => {$(
         impl From<$err> for LoxError {
@@ -108,6 +116,7 @@ macro_rules! from_err {
 from_err!(
     OverflowError,
     InternalError,
+    CompilerError,
     ConversionError,
     InvalidAccessError,
     ScannerError,

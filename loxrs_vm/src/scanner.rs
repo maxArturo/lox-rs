@@ -4,6 +4,7 @@ use std::hash::{Hash, Hasher};
 
 use logos::{FilterResult, Logos};
 
+use crate::constants::NO_SPAN;
 use crate::{
     error::{LoxErrorS, ScannerError},
     types::Span,
@@ -106,6 +107,8 @@ pub enum Token {
     // numbers
     #[regex(r"[0-9]+(\.[0-9]+)?", number)]
     Number(f64),
+
+    EndOfFile,
 }
 
 impl Eq for Token {}
@@ -213,6 +216,7 @@ impl fmt::Display for Token {
             Token::True => write!(f, "True"),
             Token::Var => write!(f, "Var"),
             Token::While => write!(f, "While"),
+            Token::EndOfFile => write!(f, "EOF"),
         }?;
         write!(f, ">")
     }
@@ -279,6 +283,7 @@ pub fn scan(source: &str) -> Result<Vec<TokenS>, Vec<LoxErrorS>> {
         }
     }
     if errs.is_empty() {
+        tokens.push((Token::EndOfFile, NO_SPAN));
         return Ok(tokens);
     }
     Err(errs)
