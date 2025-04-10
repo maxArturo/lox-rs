@@ -21,7 +21,10 @@ for running the VM version:
 RUST_BACKTRACE=1 RUST_LOG=trace cargo run --bin loxrs_vm -- ./loxrs_interpreter/src/lox/interpreter/test/e2e/pass/simple.lox
 ```
 
-or a REPL for the VM: `RUST_LOG=trace cargo run --bin loxrs_vm`
+or a REPL for the VM: 
+```shell
+RUST_LOG=trace cargo run --bin loxrs_vm
+```
 
 ## Performance
 

@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, trace};
 
 use crate::{
     constants::NO_SPAN,
@@ -27,6 +27,12 @@ impl Parser {
     pub fn advance(&mut self) {
         self.prev = self.curr.take();
         self.curr = self.tokens.next();
+
+        trace!(
+            "advanced parser, `prev`: {:?}, `curr`: {:?}",
+            self.prev,
+            self.curr
+        );
     }
 
     pub fn consume(&mut self, token: Token, err: &str) -> Result<(), LoxErrorS> {

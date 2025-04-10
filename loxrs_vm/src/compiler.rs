@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use log::debug;
+use log::{debug, trace};
 
 use crate::{
     constants::NO_SPAN,
@@ -32,7 +32,6 @@ impl Compiler {
     }
 
     fn compile(&mut self) -> Result<&Chunk, Vec<LoxErrorS>> {
-        // temporarily add a return opcode
         if let Err(e) = self.expression() {
             return Err(vec![e]);
         }
@@ -44,16 +43,19 @@ impl Compiler {
     }
 
     fn expression(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling expression()");
         self.parse_precedence(precedence::PREC_ASSIGNMENT)
     }
 
     fn grouping(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling grouping()");
         self.expression()?;
         self.parser
             .consume(Token::RightParen, "Expected `)` after expression")
     }
 
     fn parse_precedence(&mut self, prec: u8) -> Result<(), LoxErrorS> {
+        trace!("calling parse_precedence() with precedence of: {}", prec);
         self.parser.advance();
 
         let prefix_rule = {
@@ -62,8 +64,8 @@ impl Compiler {
                 None => return Ok(()),
                 Some((Token::EndOfFile, _)) => return Ok(()),
                 Some(token_s) => {
-                    debug!("[COMPILER] getting `prefix_rule` for: {:?}", prev);
-                    Compiler::get_rule(token_s)?.prefix.ok_or_else(|| {
+                    debug!("getting `prefix_rule` for: {:?}", prev);
+                    get_rule(token_s)?.prefix.ok_or_else(|| {
                         (
                             CompilerError::PrecedenceError(token_s.0.to_string()).into(),
                             token_s.1.clone(),
@@ -78,10 +80,15 @@ impl Compiler {
         loop {
             let should_break = {
                 let curr_token = self.parser.curr.as_ref();
+                trace!(
+                    "evaluating `should_break` for {:?} versus precedence of: {}",
+                    curr_token,
+                    prec
+                );
                 match curr_token {
                     None => return Ok(()),
                     Some((Token::EndOfFile, _)) => return Ok(()),
-                    Some(token_s) => prec > Compiler::get_rule(token_s)?.precedence,
+                    Some(token_s) => prec > get_rule(token_s)?.precedence,
                 }
             };
 
@@ -98,10 +105,11 @@ impl Compiler {
                     None => return Ok(()),
                     Some((Token::EndOfFile, _)) => return Ok(()),
                     Some(token_s) => {
-                        debug!("[COMPILER] getting `infix_rule` for: {:?}", prev);
-                        Compiler::get_rule(token_s)?
-                            .infix
-                            .ok_or_else(|| (InternalError::UnexpectedCodePath.into(), NO_SPAN))?
+                        debug!("getting `infix_rule` for: {:?}", prev);
+                        match get_rule(token_s)?.infix {
+                            None => return Ok(()),
+                            Some(rule) => rule,
+                        }
                     }
                 }
             };
@@ -112,6 +120,7 @@ impl Compiler {
     }
 
     fn unary(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling unary()");
         let unary_kind = self.parser.prev.clone();
 
         self.parse_precedence(precedence::PREC_UNARY)?;
@@ -129,6 +138,7 @@ impl Compiler {
     }
 
     fn binary(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling binary()");
         let binary_kind = self.parser.prev.clone();
         let precedence = {
             let prev = self
@@ -136,7 +146,7 @@ impl Compiler {
                 .prev
                 .as_ref()
                 .ok_or_else(|| (InternalError::UnexpectedCodePath.into(), NO_SPAN))?;
-            Compiler::get_rule(prev)?.precedence
+            get_rule(prev)?.precedence
         };
 
         self.parse_precedence(precedence + 1)?;
@@ -163,139 +173,137 @@ impl Compiler {
     }
 
     fn emit_constant(&mut self, value: Value, span: &Range<usize>) -> Result<(), LoxErrorS> {
-        debug!(
-            "COMPILER] adding constant to chunk: {} at {:?}",
-            value, span
-        );
+        debug!("adding constant to chunk: {} at {:?}", value, span);
         self.chunk.add_constant(opcode::CONSTANT, value, span)
     }
 
     fn number(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling number()");
         if let Some((Token::Number(number), span)) = &self.parser.prev {
             return self.emit_constant(Value::from(number.clone()), &span.clone());
         }
         Err((InternalError::UnexpectedCodePath.into(), NO_SPAN))
     }
+}
 
-    fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
-        match &token.0 {
-            Token::LeftParen => Ok(&ParseLogic {
-                prefix: Some(Compiler::grouping),
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::RightParen => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::LeftBrace => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::RightBrace => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Semicolon => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Comma => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Dot => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Minus => Ok(&ParseLogic {
-                prefix: Some(Compiler::unary),
-                infix: Some(Compiler::binary),
-                precedence: precedence::PREC_TERM,
-            }),
-            Token::Plus => Ok(&ParseLogic {
-                prefix: None,
-                infix: Some(Compiler::binary),
-                precedence: precedence::PREC_TERM,
-            }),
-            Token::Slash => Ok(&ParseLogic {
-                prefix: None,
-                infix: Some(Compiler::binary),
-                precedence: precedence::PREC_FACTOR,
-            }),
-            Token::Star => Ok(&ParseLogic {
-                prefix: None,
-                infix: Some(Compiler::binary),
-                precedence: precedence::PREC_FACTOR,
-            }),
-            Token::Equal => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Less => Ok(&ParseLogic {
-                prefix: None,
-                infix: Some(Compiler::binary),
-                precedence: precedence::PREC_FACTOR,
-            }),
-            Token::More => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::BangEqual => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::EqualEqual => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::LessEqual => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::GreaterEqual => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::And => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Or => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Literal(_) => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::String(_) => Ok(&ParseLogic {
-                prefix: None,
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            Token::Number(_) => Ok(&ParseLogic {
-                prefix: Some(Compiler::number),
-                infix: None,
-                precedence: precedence::PREC_NONE,
-            }),
-            _ => Err((InternalError::UnexpectedCodePath.into(), token.1.clone())),
-        }
+fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
+    match &token.0 {
+        Token::LeftParen => Ok(&ParseLogic {
+            prefix: Some(Compiler::grouping),
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::RightParen => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::LeftBrace => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::RightBrace => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Semicolon => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Comma => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Dot => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Minus => Ok(&ParseLogic {
+            prefix: Some(Compiler::unary),
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_TERM,
+        }),
+        Token::Plus => Ok(&ParseLogic {
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_TERM,
+        }),
+        Token::Slash => Ok(&ParseLogic {
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_FACTOR,
+        }),
+        Token::Star => Ok(&ParseLogic {
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_FACTOR,
+        }),
+        Token::Equal => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Less => Ok(&ParseLogic {
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_FACTOR,
+        }),
+        Token::More => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::BangEqual => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::EqualEqual => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::LessEqual => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::GreaterEqual => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::And => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Or => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Literal(_) => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::String(_) => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        Token::Number(_) => Ok(&ParseLogic {
+            prefix: Some(Compiler::number),
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        _ => Err((InternalError::UnexpectedCodePath.into(), token.1.clone())),
     }
 }
 
