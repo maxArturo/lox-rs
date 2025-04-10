@@ -28,6 +28,7 @@ impl VM {
 
     pub fn interpret(&mut self, source: &str) -> Result<(), Vec<LoxErrorS>> {
         self.chunk = compile(source)?;
+        trace!("interpreting VM chunk: {}", self.chunk);
         match self.run() {
             Err(err) => Err(vec![(err, self.chunk.spans[self.ip].clone())]),
             Ok(()) => Ok(()),
@@ -51,6 +52,10 @@ impl VM {
                 opcode::SUBTRACT => self.binary_op_number(|a, b| a - b)?,
                 opcode::MULTIPLY => self.binary_op_number(|a, b| a * b)?,
                 opcode::DIVIDE => self.binary_op_number(|a, b| a / b)?,
+                opcode::TERNARY_LOGICAL => self.ternary_op_number(|tern, a, b| match tern {
+                    true => a,
+                    false => b,
+                })?,
                 other => return Err(InternalError::UnknownOperation(other).into()),
             }
         }
@@ -88,6 +93,19 @@ impl VM {
         self.stack.pop().ok_or_else(|| {
             <InvalidAccessError as Into<LoxError>>::into(InvalidAccessError::StackEmpty.into())
         })
+    }
+
+    fn ternary_op_number<F: FnOnce(bool, f64, f64) -> f64>(&mut self, op: F) -> Result<()> {
+        // Stack is LIFO so we reverse the order
+        let c = self.try_pop()?.try_number()?;
+        let b = self.try_pop()?.try_number()?;
+
+        if let Some(a) = self.stack.last_mut() {
+            *a = Value::from(op(a.try_bool()?, b, c));
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
     }
 
     fn binary_op_number<F: FnOnce(f64, f64) -> f64>(&mut self, op: F) -> Result<()> {

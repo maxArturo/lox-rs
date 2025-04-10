@@ -54,6 +54,24 @@ impl Compiler {
             .consume(Token::RightParen, "Expected `)` after expression")
     }
 
+    fn ternary(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling ternary()");
+
+        let ternary = self.parser.prev.clone();
+        self.parse_precedence(precedence::PREC_TERNARY + 1)?;
+        self.parser
+            .consume(Token::Colon, "Expected `:` after expression")?;
+        self.parse_precedence(precedence::PREC_TERNARY + 1)?;
+
+        match ternary {
+            Some((token, span)) => match token {
+                Token::QuestionMark => self.emit_byte((opcode::TERNARY_LOGICAL, span.clone())),
+                _ => Err((InternalError::UnexpectedCodePath.into(), span.clone())),
+            },
+            _ => Err((InternalError::UnexpectedCodePath.into(), NO_SPAN)),
+        }
+    }
+
     fn parse_precedence(&mut self, prec: u8) -> Result<(), LoxErrorS> {
         trace!("calling parse_precedence() with precedence of: {}", prec);
         self.parser.advance();
@@ -80,15 +98,20 @@ impl Compiler {
         loop {
             let should_break = {
                 let curr_token = self.parser.curr.as_ref();
-                trace!(
-                    "evaluating `should_break` for {:?} versus precedence of: {}",
-                    curr_token,
-                    prec
-                );
+
                 match curr_token {
                     None => return Ok(()),
                     Some((Token::EndOfFile, _)) => return Ok(()),
-                    Some(token_s) => prec > get_rule(token_s)?.precedence,
+                    Some(token_s) => {
+                        let token_prec = get_rule(token_s)?.precedence;
+                        trace!(
+                            "evaluating `should_break` for {:?} with prec: {} vs top level prec of: {}",
+                            curr_token,
+                            token_prec,
+                            prec
+                        );
+                        prec > token_prec
+                    }
                 }
             };
 
@@ -184,10 +207,28 @@ impl Compiler {
         }
         Err((InternalError::UnexpectedCodePath.into(), NO_SPAN))
     }
+    fn bool(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling bool()");
+        match &self.parser.prev {
+            Some((Token::True, span)) => self.emit_constant(Value::from(true), &span.clone()),
+            Some((Token::False, span)) => self.emit_constant(Value::from(false), &span.clone()),
+            _ => Err((InternalError::UnexpectedCodePath.into(), NO_SPAN)),
+        }
+    }
 }
 
 fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
     match &token.0 {
+        Token::Colon => Ok(&ParseLogic {
+            prefix: None,
+            infix: None,
+            precedence: precedence::PREC_TERNARY,
+        }),
+        Token::QuestionMark => Ok(&ParseLogic {
+            prefix: None,
+            infix: Some(Compiler::ternary),
+            precedence: precedence::PREC_TERNARY,
+        }),
         Token::LeftParen => Ok(&ParseLogic {
             prefix: Some(Compiler::grouping),
             infix: None,
@@ -303,7 +344,15 @@ fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
             infix: None,
             precedence: precedence::PREC_NONE,
         }),
-        _ => Err((InternalError::UnexpectedCodePath.into(), token.1.clone())),
+        Token::True | Token::False => Ok(&ParseLogic {
+            prefix: Some(Compiler::bool),
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
+        other => Err((
+            CompilerError::ParseLogicNotFound(other.to_string()).into(),
+            token.1.clone(),
+        )),
     }
 }
 

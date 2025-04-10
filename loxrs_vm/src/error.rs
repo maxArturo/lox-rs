@@ -101,6 +101,8 @@ pub enum InternalError {
 pub enum CompilerError {
     #[error("Expected a different precedence for {0}")]
     PrecedenceError(String),
+    #[error("Did not find parse logic for token: {0}")]
+    ParseLogicNotFound(String),
 }
 
 macro_rules! from_err {

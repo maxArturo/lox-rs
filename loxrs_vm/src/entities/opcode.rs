@@ -7,5 +7,6 @@ iota! {
     ADD,
     SUBTRACT,
     MULTIPLY,
-    DIVIDE
+    DIVIDE,
+    TERNARY_LOGICAL
 }

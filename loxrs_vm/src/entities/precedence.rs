@@ -3,6 +3,7 @@ use iota::iota;
 iota! {
     pub const PREC_NONE: u8 = iota;,
     PREC_ASSIGNMENT,  // =
+    PREC_TERNARY,     // a ? b : c
     PREC_OR,          // or
     PREC_AND,         // and
     PREC_EQUALITY,    // == !=

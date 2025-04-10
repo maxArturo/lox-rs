@@ -90,6 +90,7 @@ impl Chunk {
             opcode::SUBTRACT => self.display_op_simple("OP_SUBTRACT", idx, f),
             opcode::MULTIPLY => self.display_op_simple("OP_MULTIPLY", idx, f),
             opcode::DIVIDE => self.display_op_simple("OP_DIVIDE", idx, f),
+            opcode::TERNARY_LOGICAL => self.display_op_simple("OP_TERNARY_LOGICAL", idx, f),
             _byte => self.display_op_simple("OP_UNKNOWN", idx, f),
         }
     }

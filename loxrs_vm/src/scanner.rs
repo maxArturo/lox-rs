@@ -45,6 +45,10 @@ pub enum Token {
     Slash,
     #[token("*")]
     Star,
+    #[token("?")]
+    QuestionMark,
+    #[token(":")]
+    Colon,
 
     // single or double-chars
     #[token("=")]
@@ -216,6 +220,8 @@ impl fmt::Display for Token {
             Token::True => write!(f, "True"),
             Token::Var => write!(f, "Var"),
             Token::While => write!(f, "While"),
+            Token::QuestionMark => write!(f, "?"),
+            Token::Colon => write!(f, ":"),
             Token::EndOfFile => write!(f, "EOF"),
         }?;
         write!(f, ">")
