@@ -1,3 +1,4 @@
+use core::f64;
 use std::fmt::{Display, Formatter};
 
 use arrayvec::ArrayVec;
@@ -47,11 +48,15 @@ impl VM {
                     break;
                 }
                 opcode::CONSTANT => self.constant()?,
+                opcode::NOT => self.not()?,
                 opcode::NEGATE => self.negate()?,
                 opcode::ADD => self.binary_op_number(|a, b| a + b)?,
                 opcode::SUBTRACT => self.binary_op_number(|a, b| a - b)?,
                 opcode::MULTIPLY => self.binary_op_number(|a, b| a * b)?,
                 opcode::DIVIDE => self.binary_op_number(|a, b| a / b)?,
+                opcode::GREATER => self.binary_op_number(|a, b| a > b)?,
+                opcode::LESS => self.binary_op_number(|a, b| a < b)?,
+                opcode::EQUAL => self.equal()?,
                 opcode::TERNARY_LOGICAL => self.ternary_op_number(|tern, a, b| match tern {
                     true => a,
                     false => b,
@@ -72,6 +77,15 @@ impl VM {
         if let Some(last) = self.stack.last_mut() {
             let num: f64 = -(last.try_number()?);
             *last = Value::from(num);
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
+    }
+
+    fn not(&mut self) -> Result<(), LoxError> {
+        if let Some(last) = self.stack.last_mut() {
+            *last = Value::from(last.is_falsey());
             Ok(())
         } else {
             return Err(InvalidAccessError::StackEmpty.into());
@@ -108,17 +122,32 @@ impl VM {
         }
     }
 
-    fn binary_op_number<F: FnOnce(f64, f64) -> f64>(&mut self, op: F) -> Result<()> {
-        // Stack is LIFO so we reverse the order
-        let b = self.try_pop()?.try_number()?;
-        // let a = self.try_pop()?.try_number()?;
-
+    fn last_mut(&mut self) -> Result<&mut Value> {
         if let Some(a) = self.stack.last_mut() {
-            *a = Value::from(op(a.try_number()?, b));
-            Ok(())
+            Ok(a)
         } else {
             return Err(InvalidAccessError::StackEmpty.into());
         }
+    }
+
+    fn equal(&mut self) -> Result<()> {
+        // TODO figure out if comparing stright u64s is enough in memory
+        let b = self.try_pop()?;
+        let a = self.last_mut()?;
+
+        *a = Value::from(*a == b);
+        Ok(())
+    }
+
+    fn binary_op_number<T, F: FnOnce(f64, f64) -> T>(&mut self, op: F) -> Result<()>
+    where
+        Value: From<T>,
+    {
+        // Stack is LIFO so we reverse the order
+        let b = self.try_pop()?.try_number()?;
+        let a = self.last_mut()?;
+        *a = Value::from(op(a.try_number()?, b));
+        Ok(())
     }
 }
 

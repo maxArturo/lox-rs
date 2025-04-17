@@ -91,6 +91,10 @@ impl Chunk {
             opcode::MULTIPLY => self.display_op_simple("OP_MULTIPLY", idx, f),
             opcode::DIVIDE => self.display_op_simple("OP_DIVIDE", idx, f),
             opcode::TERNARY_LOGICAL => self.display_op_simple("OP_TERNARY_LOGICAL", idx, f),
+            opcode::NOT => self.display_op_simple("OP_NOT", idx, f),
+            opcode::GREATER => self.display_op_simple("OP_GREATER", idx, f),
+            opcode::EQUAL => self.display_op_simple("OP_EQUAL", idx, f),
+            opcode::LESS => self.display_op_simple("OP_LESS", idx, f),
             _byte => self.display_op_simple("OP_UNKNOWN", idx, f),
         }
     }

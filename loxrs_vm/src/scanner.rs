@@ -49,6 +49,8 @@ pub enum Token {
     QuestionMark,
     #[token(":")]
     Colon,
+    #[token("!")]
+    Bang,
 
     // single or double-chars
     #[token("=")]
@@ -223,6 +225,7 @@ impl fmt::Display for Token {
             Token::QuestionMark => write!(f, "?"),
             Token::Colon => write!(f, ":"),
             Token::EndOfFile => write!(f, "EOF"),
+            Token::Bang => write!(f, "!"),
         }?;
         write!(f, ">")
     }

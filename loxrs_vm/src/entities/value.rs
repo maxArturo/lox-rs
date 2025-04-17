@@ -12,7 +12,7 @@ impl Value {
     // const SIGN_BIT: u64 = 0x8000000000000000;
     const QNAN_BIT: u64 = 0x7FFC000000000000;
 
-    // pub const NIL: Self = Self(Self::QNAN_BIT | 0x1);
+    pub const NIL: Self = Self(Self::QNAN_BIT | 0x1);
     pub const TRUE: Self = Self(Self::QNAN_BIT | 0x2);
     pub const FALSE: Self = Self(Self::QNAN_BIT | 0x3);
 
@@ -20,12 +20,24 @@ impl Value {
         (self.0 & Self::QNAN_BIT) != Self::QNAN_BIT
     }
 
+    pub fn is_nil(&self) -> bool {
+        self.0 == Self::NIL.0
+    }
+
+    pub fn is_falsey(&self) -> bool {
+        self.is_false() || self.is_nil()
+    }
+
+    pub fn is_true(&self) -> bool {
+        self.0 == Self::TRUE.0
+    }
+
+    pub fn is_false(&self) -> bool {
+        self.0 == Self::FALSE.0
+    }
+
     fn is_bool(&self) -> bool {
-        match self.0 {
-            val if val == Self::TRUE.0 => true,
-            val if val == Self::FALSE.0 => true,
-            _ => false,
-        }
+        self.is_true() || self.is_false()
     }
 
     fn get_bool(&self) -> Option<bool> {
@@ -37,10 +49,7 @@ impl Value {
     }
 
     fn as_bool(&self) -> bool {
-        match self.0 {
-            val if val == Self::TRUE.0 => true,
-            _ => false,
-        }
+        self.is_true()
     }
 
     pub fn try_bool(&self) -> Result<bool, LoxError> {
@@ -85,6 +94,10 @@ impl Display for Value {
 
         if self.is_bool() {
             return write!(f, "{}", self.as_bool());
+        }
+
+        if self.is_nil() {
+            return write!(f, "nil");
         }
 
         write!(f, "{}", self.0)

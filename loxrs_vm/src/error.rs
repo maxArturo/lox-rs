@@ -103,6 +103,8 @@ pub enum CompilerError {
     PrecedenceError(String),
     #[error("Did not find parse logic for token: {0}")]
     ParseLogicNotFound(String),
+    #[error("No implementation logic for token: {0}")]
+    UnimplementedType(String),
 }
 
 macro_rules! from_err {

@@ -154,6 +154,10 @@ impl Compiler {
                     self.emit_byte((opcode::NEGATE, span.clone()))?;
                     Ok(())
                 }
+                Token::Bang => {
+                    self.emit_byte((opcode::NOT, span.clone()))?;
+                    Ok(())
+                }
                 _ => Err((InternalError::UnexpectedCodePath.into(), span.clone())),
             },
             _ => Err((InternalError::UnexpectedCodePath.into(), NO_SPAN)),
@@ -176,6 +180,21 @@ impl Compiler {
 
         match binary_kind {
             Some((token, span)) => match token {
+                Token::BangEqual => {
+                    self.emit_byte((opcode::EQUAL, span.clone()))?;
+                    self.emit_byte((opcode::NOT, span.clone()))
+                }
+                Token::EqualEqual => self.emit_byte((opcode::EQUAL, span.clone())),
+                Token::More => self.emit_byte((opcode::GREATER, span.clone())),
+                Token::GreaterEqual => {
+                    self.emit_byte((opcode::LESS, span.clone()))?;
+                    self.emit_byte((opcode::NOT, span.clone()))
+                }
+                Token::Less => self.emit_byte((opcode::LESS, span.clone())),
+                Token::LessEqual => {
+                    self.emit_byte((opcode::GREATER, span.clone()))?;
+                    self.emit_byte((opcode::NOT, span.clone()))
+                }
                 Token::Plus => self.emit_byte((opcode::ADD, span.clone())),
                 Token::Minus => self.emit_byte((opcode::SUBTRACT, span.clone())),
                 Token::Star => self.emit_byte((opcode::MULTIPLY, span.clone())),
@@ -207,12 +226,20 @@ impl Compiler {
         }
         Err((InternalError::UnexpectedCodePath.into(), NO_SPAN))
     }
-    fn bool(&mut self) -> Result<(), LoxErrorS> {
-        trace!("calling bool()");
+    fn literal(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling literal()");
         match &self.parser.prev {
-            Some((Token::True, span)) => self.emit_constant(Value::from(true), &span.clone()),
-            Some((Token::False, span)) => self.emit_constant(Value::from(false), &span.clone()),
-            _ => Err((InternalError::UnexpectedCodePath.into(), NO_SPAN)),
+            Some((Token::True, span)) => self.emit_constant(Value::TRUE, &span.clone()),
+            Some((Token::False, span)) => self.emit_constant(Value::FALSE, &span.clone()),
+            Some((Token::Nil, span)) => self.emit_constant(Value::NIL, &span.clone()),
+            Some((token, span)) => Err((
+                CompilerError::UnimplementedType(token.to_string()).into(),
+                span.clone(),
+            )),
+            None => Err((
+                CompilerError::UnimplementedType(("NONE_FOUND").to_string()).into(),
+                NO_SPAN,
+            )),
         }
     }
 }
@@ -269,6 +296,11 @@ fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
             infix: Some(Compiler::binary),
             precedence: precedence::PREC_TERM,
         }),
+        Token::Bang => Ok(&ParseLogic {
+            prefix: Some(Compiler::unary),
+            infix: None,
+            precedence: precedence::PREC_NONE,
+        }),
         Token::Plus => Ok(&ParseLogic {
             prefix: None,
             infix: Some(Compiler::binary),
@@ -292,32 +324,33 @@ fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
         Token::Less => Ok(&ParseLogic {
             prefix: None,
             infix: Some(Compiler::binary),
-            precedence: precedence::PREC_FACTOR,
+            precedence: precedence::PREC_COMPARISON,
         }),
         Token::More => Ok(&ParseLogic {
             prefix: None,
-            infix: None,
-            precedence: precedence::PREC_NONE,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_COMPARISON,
         }),
         Token::BangEqual => Ok(&ParseLogic {
             prefix: None,
-            infix: None,
-            precedence: precedence::PREC_NONE,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_EQUALITY,
         }),
         Token::EqualEqual => Ok(&ParseLogic {
             prefix: None,
-            infix: None,
-            precedence: precedence::PREC_NONE,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_EQUALITY,
         }),
+
         Token::LessEqual => Ok(&ParseLogic {
             prefix: None,
-            infix: None,
-            precedence: precedence::PREC_NONE,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_COMPARISON,
         }),
         Token::GreaterEqual => Ok(&ParseLogic {
             prefix: None,
-            infix: None,
-            precedence: precedence::PREC_NONE,
+            infix: Some(Compiler::binary),
+            precedence: precedence::PREC_COMPARISON,
         }),
         Token::And => Ok(&ParseLogic {
             prefix: None,
@@ -344,11 +377,12 @@ fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
             infix: None,
             precedence: precedence::PREC_NONE,
         }),
-        Token::True | Token::False => Ok(&ParseLogic {
-            prefix: Some(Compiler::bool),
+        Token::True | Token::False | Token::Nil => Ok(&ParseLogic {
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: precedence::PREC_NONE,
         }),
+
         other => Err((
             CompilerError::ParseLogicNotFound(other.to_string()).into(),
             token.1.clone(),

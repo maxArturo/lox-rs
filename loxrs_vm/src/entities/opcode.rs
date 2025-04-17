@@ -8,5 +8,9 @@ iota! {
     SUBTRACT,
     MULTIPLY,
     DIVIDE,
-    TERNARY_LOGICAL
+    TERNARY_LOGICAL,
+    NOT,
+    GREATER,
+    EQUAL,
+    LESS
 }
