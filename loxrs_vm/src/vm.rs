@@ -1,12 +1,14 @@
+use core::f64;
 use std::fmt::{Display, Formatter};
 
 use arrayvec::ArrayVec;
 use log::trace;
 
 use crate::{
+    compiler::compile,
     config::MAX_STACK,
     entities::{chunk::Chunk, opcode, value::Value},
-    error::{InternalError, InvalidAccessError, LoxError, Result},
+    error::{InternalError, InvalidAccessError, LoxError, LoxErrorS, Result},
 };
 
 #[derive(Debug)]
@@ -17,22 +19,28 @@ pub struct VM {
 }
 
 impl VM {
-    pub fn new(chunk: Chunk) -> Self {
+    pub fn new() -> Self {
         Self {
-            chunk,
+            chunk: Chunk::default(),
             stack: ArrayVec::new(),
             ip: 0,
         }
     }
 
-    pub fn interpret(&mut self) -> Result<()> {
-        self.run()
+    pub fn interpret(&mut self, source: &str) -> Result<(), Vec<LoxErrorS>> {
+        self.chunk = compile(source)?;
+        trace!("interpreting VM chunk: {}", self.chunk);
+        match self.run() {
+            Err(err) => Err(vec![(err, self.chunk.spans[self.ip].clone())]),
+            Ok(()) => Ok(()),
+        }
     }
 
     pub fn run(&mut self) -> Result<()> {
         loop {
             trace!("chunk idx at: {self}");
-            match self.read_op() {
+            let ip = self.ip();
+            match self.chunk.code[ip] {
                 opcode::RETURN => {
                     let val = self.try_pop()?;
 
@@ -40,11 +48,19 @@ impl VM {
                     break;
                 }
                 opcode::CONSTANT => self.constant()?,
+                opcode::NOT => self.not()?,
                 opcode::NEGATE => self.negate()?,
                 opcode::ADD => self.binary_op_number(|a, b| a + b)?,
                 opcode::SUBTRACT => self.binary_op_number(|a, b| a - b)?,
                 opcode::MULTIPLY => self.binary_op_number(|a, b| a * b)?,
                 opcode::DIVIDE => self.binary_op_number(|a, b| a / b)?,
+                opcode::GREATER => self.binary_op_number(|a, b| a > b)?,
+                opcode::LESS => self.binary_op_number(|a, b| a < b)?,
+                opcode::EQUAL => self.equal()?,
+                opcode::TERNARY_LOGICAL => self.ternary_op_number(|tern, a, b| match tern {
+                    true => a,
+                    false => b,
+                })?,
                 other => return Err(InternalError::UnknownOperation(other).into()),
             }
         }
@@ -57,15 +73,23 @@ impl VM {
         ip
     }
 
-    fn read_op(&mut self) -> u8 {
-        let ip = self.ip();
-        self.chunk.read(ip)
+    fn negate(&mut self) -> Result<(), LoxError> {
+        if let Some(last) = self.stack.last_mut() {
+            let num: f64 = -(last.try_number()?);
+            *last = Value::from(num);
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
     }
 
-    fn negate(&mut self) -> Result<()> {
-        let last = self.stack.len() - 1;
-        self.stack[last] = Value::from(-(self.stack[last].try_number()?));
-        Ok(())
+    fn not(&mut self) -> Result<(), LoxError> {
+        if let Some(last) = self.stack.last_mut() {
+            *last = Value::from(last.is_falsey());
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
     }
 
     fn constant(&mut self) -> Result<()> {
@@ -85,11 +109,44 @@ impl VM {
         })
     }
 
-    fn binary_op_number<F: FnOnce(f64, f64) -> f64>(&mut self, op: F) -> Result<()> {
+    fn ternary_op_number<F: FnOnce(bool, f64, f64) -> f64>(&mut self, op: F) -> Result<()> {
+        // Stack is LIFO so we reverse the order
+        let c = self.try_pop()?.try_number()?;
+        let b = self.try_pop()?.try_number()?;
+
+        if let Some(a) = self.stack.last_mut() {
+            *a = Value::from(op(a.try_bool()?, b, c));
+            Ok(())
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
+    }
+
+    fn last_mut(&mut self) -> Result<&mut Value> {
+        if let Some(a) = self.stack.last_mut() {
+            Ok(a)
+        } else {
+            return Err(InvalidAccessError::StackEmpty.into());
+        }
+    }
+
+    fn equal(&mut self) -> Result<()> {
+        // TODO figure out if comparing stright u64s is enough in memory
+        let b = self.try_pop()?;
+        let a = self.last_mut()?;
+
+        *a = Value::from(*a == b);
+        Ok(())
+    }
+
+    fn binary_op_number<T, F: FnOnce(f64, f64) -> T>(&mut self, op: F) -> Result<()>
+    where
+        Value: From<T>,
+    {
         // Stack is LIFO so we reverse the order
         let b = self.try_pop()?.try_number()?;
-        let a = self.try_pop()?.try_number()?;
-        self.stack.push(Value::from(op(a, b)));
+        let a = self.last_mut()?;
+        *a = Value::from(op(a.try_number()?, b));
         Ok(())
     }
 }

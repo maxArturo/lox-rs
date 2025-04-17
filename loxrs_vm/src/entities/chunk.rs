@@ -7,17 +7,17 @@ use arrayvec::ArrayVec;
 
 use crate::{
     config::MAX_CONST_POOL,
-    error::{LoxError, OverflowError, Result as LoxResult},
-    span::Span,
+    error::{LoxError, LoxErrorS, OverflowError, Result as LoxResult},
 };
 
 use super::{opcode, value::Value};
+type Span = Range<usize>;
 
 #[derive(Debug, Default)]
 pub struct Chunk {
     pub code: Vec<u8>,
     constants: ArrayVec<Value, MAX_CONST_POOL>,
-    spans: Vec<Span>,
+    pub spans: Vec<Span>,
 }
 
 impl Chunk {
@@ -43,20 +43,21 @@ impl Chunk {
         })
     }
 
-    pub fn add_constant(&mut self, opcode: u8, val: Value, span: &Span) -> LoxResult<()> {
-        let idx = self.write_constant(val)?;
+    pub fn add_constant(
+        &mut self,
+        opcode: u8,
+        val: Value,
+        span: &Span,
+    ) -> LoxResult<(), LoxErrorS> {
+        let idx = self.write_constant(val).map_err(|e| (e, span.clone()))?;
         self.write_chunk(opcode, span.clone());
         self.write_chunk(idx, span.clone());
         Ok(())
     }
 
-    pub fn read(&self, idx: usize) -> u8 {
-        self.code[idx]
-    }
-
     pub fn read_const(&self, idx: usize) -> LoxResult<Value> {
         if idx < MAX_CONST_POOL {
-            return Ok(self.constants[self.read(idx) as usize]);
+            return Ok(self.constants[self.code[idx] as usize]);
         }
 
         return Err(<OverflowError as Into<LoxError>>::into(
@@ -89,6 +90,11 @@ impl Chunk {
             opcode::SUBTRACT => self.display_op_simple("OP_SUBTRACT", idx, f),
             opcode::MULTIPLY => self.display_op_simple("OP_MULTIPLY", idx, f),
             opcode::DIVIDE => self.display_op_simple("OP_DIVIDE", idx, f),
+            opcode::TERNARY_LOGICAL => self.display_op_simple("OP_TERNARY_LOGICAL", idx, f),
+            opcode::NOT => self.display_op_simple("OP_NOT", idx, f),
+            opcode::GREATER => self.display_op_simple("OP_GREATER", idx, f),
+            opcode::EQUAL => self.display_op_simple("OP_EQUAL", idx, f),
+            opcode::LESS => self.display_op_simple("OP_LESS", idx, f),
             _byte => self.display_op_simple("OP_UNKNOWN", idx, f),
         }
     }
