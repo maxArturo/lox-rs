@@ -15,6 +15,8 @@ cargo run -- ./loxrs_interpreter/src/lox/interpreter/test/e2e/unimplemented/basi
 
 ```
 
+## VM Implementation 
+
 for running the VM version: 
 
 ```shell

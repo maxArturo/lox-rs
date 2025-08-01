@@ -27,6 +27,10 @@ impl VM {
         }
     }
 
+    pub fn newline(&mut self) {
+        self.ip = 0
+    }
+
     pub fn interpret(&mut self, source: &str) -> Result<(), Vec<LoxErrorS>> {
         self.chunk = compile(source)?;
         trace!("interpreting VM chunk: {}", self.chunk);
