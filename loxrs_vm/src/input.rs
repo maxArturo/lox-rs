@@ -55,6 +55,11 @@ fn repl() {
                 continue;
             }
         };
+
+        // TODO this simply lets the VM keep on chugging along, without preserving any
+        // previous data. This plus the chunk functionality needs to be revised to support
+        // full REPL functionality
+        vm.newline();
         let _ = vm
             .interpret(&statement)
             .inspect_err(|errs| report_errors(errs, "REPL input", &statement));
