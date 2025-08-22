@@ -58,6 +58,8 @@ fn repl() {
         let _ = vm
             .interpret(&statement)
             .inspect_err(|errs| report_errors(errs, "REPL input", &statement));
+
+        vm.ip = 0;
     }
 }
 

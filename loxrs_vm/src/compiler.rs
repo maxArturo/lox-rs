@@ -4,11 +4,12 @@ use log::{debug, trace};
 
 use crate::{
     constants::NO_SPAN,
-    entities::{chunk::Chunk, opcode, precedence, value::Value},
+    entities::{chunk::Chunk, object::ObjString, opcode, precedence, value::Value},
     error::{CompilerError, InternalError, LoxErrorS, Result},
     parser::Parser,
     scanner::{scan, Token, TokenS},
     types::Span,
+    vm::intern_string,
 };
 
 pub fn compile(source: &str) -> Result<Chunk, Vec<LoxErrorS>> {
@@ -205,6 +206,24 @@ impl Compiler {
         }
     }
 
+    fn string(&mut self) -> Result<(), LoxErrorS> {
+        trace!("calling string()");
+        match &self.parser.prev {
+            Some((Token::String(str), span)) => {
+                let object = Box::into_raw(Box::new(ObjString::new(intern_string(str))));
+                self.emit_constant(object.into(), &span.clone())
+            }
+            Some((token, span)) => Err((
+                CompilerError::UnimplementedType(token.to_string()).into(),
+                span.clone(),
+            )),
+            None => Err((
+                CompilerError::UnimplementedType(("NONE_FOUND").to_string()).into(),
+                NO_SPAN,
+            )),
+        }
+    }
+
     fn emit_byte(&mut self, byte: Span<u8>) -> Result<(), LoxErrorS> {
         self.chunk.write_chunk(byte.0, byte.1);
         Ok(())
@@ -368,7 +387,7 @@ fn get_rule(token: &TokenS) -> Result<&'static ParseLogic, LoxErrorS> {
             precedence: precedence::PREC_NONE,
         }),
         Token::String(_) => Ok(&ParseLogic {
-            prefix: None,
+            prefix: Some(Compiler::string),
             infix: None,
             precedence: precedence::PREC_NONE,
         }),

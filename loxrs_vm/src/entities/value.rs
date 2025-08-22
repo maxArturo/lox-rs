@@ -1,4 +1,7 @@
-use crate::error::{ConversionError, LoxError, Result};
+use crate::{
+    entities::object::{ObjType, Object},
+    error::{ConversionError, LoxError, Result},
+};
 use std::{fmt::Display, mem};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -9,15 +12,23 @@ const _: () = assert!(mem::size_of::<Value>() == 8);
 
 /// Values in lox are represented as [u64] consts
 impl Value {
-    // const SIGN_BIT: u64 = 0x8000000000000000;
+    const SIGN_BIT: u64 = 0x8000000000000000;
     const QNAN_BIT: u64 = 0x7FFC000000000000;
 
     pub const NIL: Self = Self(Self::QNAN_BIT | 0x1);
     pub const TRUE: Self = Self(Self::QNAN_BIT | 0x2);
     pub const FALSE: Self = Self(Self::QNAN_BIT | 0x3);
 
-    pub fn is_number(&self) -> bool {
+    pub const fn is_number(&self) -> bool {
         (self.0 & Self::QNAN_BIT) != Self::QNAN_BIT
+    }
+
+    pub const fn is_object(&self) -> bool {
+        self.0 & (Self::QNAN_BIT | Self::SIGN_BIT) == (Self::QNAN_BIT | Self::SIGN_BIT)
+    }
+
+    pub fn is_str(&self) -> bool {
+        self.is_object() && self.as_object().type_() == ObjType::String
     }
 
     pub fn is_nil(&self) -> bool {
@@ -63,6 +74,12 @@ impl Value {
         f64::from_bits(self.0)
     }
 
+    pub fn as_object(&self) -> Object {
+        Object {
+            common: (self.0 & !(Self::SIGN_BIT | Self::QNAN_BIT)) as _,
+        }
+    }
+
     pub fn try_number(&self) -> Result<f64, LoxError> {
         if self.is_number() {
             return Ok(self.as_number());
@@ -86,6 +103,12 @@ impl From<bool> for Value {
     }
 }
 
+impl<O: Into<Object>> From<O> for Value {
+    fn from(object: O) -> Self {
+        Self((unsafe { object.into().common } as u64) | Self::SIGN_BIT | Self::QNAN_BIT)
+    }
+}
+
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_number() {
@@ -98,6 +121,10 @@ impl Display for Value {
 
         if self.is_nil() {
             return write!(f, "nil");
+        }
+
+        if self.is_object() {
+            return write!(f, "{}", self.as_object());
         }
 
         write!(f, "{}", self.0)

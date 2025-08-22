@@ -1,5 +1,8 @@
 use core::f64;
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    sync::OnceLock,
+};
 
 use arrayvec::ArrayVec;
 use log::trace;
@@ -7,15 +10,42 @@ use log::trace;
 use crate::{
     compiler::compile,
     config::MAX_STACK,
-    entities::{chunk::Chunk, opcode, value::Value},
+    entities::{
+        chunk::Chunk,
+        object::{ObjString, Object},
+        opcode,
+        value::Value,
+    },
     error::{InternalError, InvalidAccessError, LoxError, LoxErrorS, Result},
 };
+
+use std::sync::Mutex;
+
+static STRING_POOL: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+
+// TODO manage memory at this level via GC
+pub fn intern_string(s: &str) -> &'static str {
+    let pool = STRING_POOL.get_or_init(|| Mutex::new(Vec::new()));
+    let mut pool = pool.lock().unwrap();
+
+    // Check if string already exists
+    for existing in pool.iter() {
+        if existing == s {
+            return unsafe { std::mem::transmute(existing.as_str()) };
+        }
+    }
+
+    // Add new string
+    pool.push(s.to_string());
+    let last = pool.last().unwrap();
+    unsafe { std::mem::transmute(last.as_str()) }
+}
 
 #[derive(Debug)]
 pub struct VM {
     chunk: Chunk,
     stack: ArrayVec<Value, MAX_STACK>,
-    ip: usize,
+    pub ip: usize,
 }
 
 impl VM {
@@ -50,7 +80,34 @@ impl VM {
                 opcode::CONSTANT => self.constant()?,
                 opcode::NOT => self.not()?,
                 opcode::NEGATE => self.negate()?,
-                opcode::ADD => self.binary_op_number(|a, b| a + b)?,
+                opcode::ADD => {
+                    let b = self.try_pop()?;
+                    let a = self.last_mut()?;
+
+                    if a.is_str() && b.is_str() {
+                        trace!("both are strings");
+
+                        // TODO needs drop/alloc
+                        let res = unsafe {
+                            [
+                                (*(a.as_object()).string).value,
+                                (*(b.as_object()).string).value,
+                            ]
+                            .concat()
+                        };
+                        let str = intern_string(&*res);
+                        let object = Box::into_raw(Box::new(ObjString::new(str)));
+
+                        trace!("resulting string: {}", str);
+                        *a = Value::from(<*mut ObjString as Into<Object>>::into(object));
+
+                        trace!("finalized value: {}", a);
+                        continue;
+                    }
+
+                    let b = b.try_number()?;
+                    *a = Value::from(a.try_number()? + b);
+                }
                 opcode::SUBTRACT => self.binary_op_number(|a, b| a - b)?,
                 opcode::MULTIPLY => self.binary_op_number(|a, b| a * b)?,
                 opcode::DIVIDE => self.binary_op_number(|a, b| a / b)?,
@@ -131,11 +188,18 @@ impl VM {
     }
 
     fn equal(&mut self) -> Result<()> {
-        // TODO figure out if comparing stright u64s is enough in memory
         let b = self.try_pop()?;
         let a = self.last_mut()?;
 
-        *a = Value::from(*a == b);
+        if a.is_object() && b.is_object() {
+            trace!("both are objects, comparing equality");
+
+            trace!("a: {:?}, b: {:?}", a.as_object(), b.as_object());
+            *a = Value::from(a.as_object() == b.as_object());
+        } else {
+            *a = Value::from(*a == b);
+        }
+
         Ok(())
     }
 
